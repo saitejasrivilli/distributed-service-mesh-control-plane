@@ -1,5 +1,43 @@
 # Changelog
 
+## v1.0.0 — Production-quality release
+
+- Full test matrix passes: `go build`, `go vet`, `gofmt`, `go test`,
+  `go test -race`, `golangci-lint` — 0 issues, 0 flaky tests observed.
+  Measured coverage on core control-plane logic: 85.7%
+  (`go test ./... -coverpkg=./internal/...`).
+- `internal/metrics`: added tests for collector registration/independence
+  (closing the last untested package).
+- Remaining ADRs written: ADR-003 (desired vs. observed state), ADR-005
+  (configuration versioning), ADR-008 (health-aware discovery), ADR-011
+  (failure handling — the consolidated single-point-of-failure discussion),
+  ADR-012 (security — an honest account of the current, unauthenticated
+  state of the management/xDS APIs).
+- `docs/interview/`: ten deep-dive docs (architecture, control-plane, xds,
+  service-discovery, traffic-management, container-networking,
+  failure-modes, scalability, observability, tradeoffs) plus
+  `project-walkthrough.md` with 30-second/2-minute/5-minute/15-minute
+  explanations.
+- `docs/resume-evidence.md`: every resume-worthy claim mapped to specific
+  code, test, and release.
+- `docs/releases/index.md`: quick release index with tag links.
+- `SECURITY.md`, `CONTRIBUTING.md`, `LICENSE` (MIT) added.
+- `.github/workflows/{test,integration,security,release}.yml`: CI
+  definitions covering the full quality gate, all five smoke-test scripts,
+  the scale/benchmark test suite, `govulncheck` + Trivy image scanning, and
+  a tag-triggered release job. (YAML validity checked locally; not yet
+  exercised on a live GitHub Actions runner as part of this project.)
+- README fully rewritten to the v1.0.0 template: problem, architecture,
+  control/data plane, registry, discovery, Envoy/xDS architecture,
+  CDS/EDS/LDS/RDS, traffic management, failure handling, Kubernetes,
+  observability, performance, testing, limitations, future work — plus the
+  explicit statement that this is an independent implementation, not an
+  AWS ECS Service Connect / Service Gateway / Cloud Map implementation.
+- Explicitly documented limitations (not hidden): single control-plane
+  process with no HA, no API authentication, in-memory-only registry,
+  full-rebuild-every-tick xDS model, and the scope of what v0.9.0's scale
+  testing did and did not cover.
+
 ## v0.9.0 — Failure, scale, and performance validation
 
 - `internal/xds/snapshot_bench_test.go`: Go benchmarks for xDS snapshot

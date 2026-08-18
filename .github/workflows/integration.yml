@@ -1,0 +1,58 @@
+name: integration
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+
+jobs:
+  docker-build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: build image
+        run: docker build -t mesh/control-plane:ci .
+
+  envoy-smoke:
+    runs-on: ubuntu-latest
+    needs: docker-build
+    steps:
+      - uses: actions/checkout@v4
+      - name: build image
+        run: docker build -t mesh/control-plane:ci .
+      - name: envoy smoke test
+        run: ./scripts/envoy_smoke_test.sh
+
+  xds-smoke:
+    runs-on: ubuntu-latest
+    needs: docker-build
+    steps:
+      - uses: actions/checkout@v4
+      - name: xds smoke test
+        run: ./scripts/xds_smoke_test.sh
+
+  traffic-smoke:
+    runs-on: ubuntu-latest
+    needs: docker-build
+    steps:
+      - uses: actions/checkout@v4
+      - name: traffic smoke test
+        run: ./scripts/traffic_smoke_test.sh
+
+  health-reconciliation-smoke:
+    runs-on: ubuntu-latest
+    needs: docker-build
+    steps:
+      - uses: actions/checkout@v4
+      - name: health reconciliation smoke test
+        run: ./scripts/health_reconciliation_smoke_test.sh
+
+  benchmark-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.26"
+      - name: scale/benchmark tests
+        run: go test ./test/benchmark/... -v -timeout 120s

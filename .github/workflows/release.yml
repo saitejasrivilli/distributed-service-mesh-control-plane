@@ -1,0 +1,32 @@
+name: release
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+jobs:
+  verify-and-build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.26"
+      - name: full quality gate
+        run: |
+          test -z "$(gofmt -l .)"
+          go vet ./...
+          go build ./...
+          go test ./...
+          go test -race ./...
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v6
+        with:
+          version: latest
+      - name: build release image
+        run: docker build -t mesh/control-plane:${{ github.ref_name }} .
+      - name: create GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
