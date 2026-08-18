@@ -42,7 +42,7 @@ func New(cfg config.Config) *ControlPlane {
 
 	snapshotCache := cachev3.NewSnapshotCache(true, cachev3.IDHash{}, nil)
 	xdsServer := xds.NewServer(context.Background(), snapshotCache, nil, logger)
-	reconciler := reconciliation.New(svcRegistry, routeStore, snapshotCache, logger)
+	reconciler := reconciliation.New(svcRegistry, routeStore, snapshotCache, logger, cfg.StaleAfter)
 
 	return &ControlPlane{
 		cfg:        cfg,

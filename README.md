@@ -8,10 +8,10 @@ discovery, and Kubernetes deployment. Built to close the specialized gap
 between general distributed-systems experience and service-mesh/container-
 networking infrastructure work.
 
-**Status: v0.5.0 — control-plane foundation + service registry/discovery +
-Envoy integration + dynamic xDS + service-to-service traffic management
-(weighted/canary routing, retries, timeouts, circuit breaking).**
-Health-aware reconciliation lands in v0.6.0 (see `CHANGELOG.md`).
+**Status: v0.6.0 — control-plane foundation + service registry/discovery +
+Envoy integration + dynamic xDS + traffic management + health-aware
+reconciliation.** Kubernetes deployment lands in v0.7.0 (see
+`CHANGELOG.md`).
 
 This is an independent service-mesh implementation inspired by production
 service-discovery and traffic-management architectures. It is not an
@@ -84,6 +84,18 @@ curl -X PUT localhost:8080/v1/routes/backend-a -d '{"splits":[{"version":"v1","w
 ./scripts/traffic_smoke_test.sh   # measures real canary distribution at both splits
 ```
 
+**v0.6.0**
+- Missed heartbeats (default: no heartbeat within 15s) persist a
+  `Healthy=false` transition on the registry instance, not just a read-time
+  filter; a heartbeat recovers it
+- Invalid configuration is never published to Envoy (validated route specs,
+  consistency-checked snapshots) — see `docs/runbooks/config-rejection.md`
+- Runbooks: `docs/runbooks/{backend-failure,control-plane-failure,stale-endpoint,config-rejection}.md`
+
+```
+./scripts/health_reconciliation_smoke_test.sh   # live proof: stale -> unhealthy -> Envoy avoids -> heartbeat -> recovered
+```
+
 See `docs/architecture/system.md` for the design and `docs/adr/` for decision
 records.
 
@@ -111,5 +123,5 @@ golangci-lint run ./...
 
 ## Roadmap
 
-v0.6.0 reconciliation/health · v0.7.0 Kubernetes · v0.8.0 observability ·
-v0.9.0 scale/perf validation · v1.0.0 production-quality release.
+v0.7.0 Kubernetes · v0.8.0 observability · v0.9.0 scale/perf validation ·
+v1.0.0 production-quality release.

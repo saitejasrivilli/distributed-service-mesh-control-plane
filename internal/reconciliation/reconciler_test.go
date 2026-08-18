@@ -16,7 +16,7 @@ func newTestReconciler() (*Reconciler, *registry.InMemory, cachev3.SnapshotCache
 	reg := registry.New()
 	routes := routing.NewStore()
 	cache := cachev3.NewSnapshotCache(true, cachev3.IDHash{}, nil)
-	r := New(reg, routes, cache, logging.New("error"))
+	r := New(reg, routes, cache, logging.New("error"), 15*time.Second)
 	return r, reg, cache
 }
 
@@ -80,5 +80,41 @@ func TestRunReconcilesPeriodicallyAndStopsOnCancel(t *testing.T) {
 
 	if r.Attempts() < 2 {
 		t.Fatalf("Attempts() = %d, want at least 2 periodic reconciles", r.Attempts())
+	}
+}
+
+func TestReconcileSweepsStaleInstances(t *testing.T) {
+	reg := registry.New()
+	routes := routing.NewStore()
+	cache := cachev3.NewSnapshotCache(true, cachev3.IDHash{}, nil)
+	r := New(reg, routes, cache, logging.New("error"), 10*time.Millisecond)
+
+	_ = reg.Register(registry.Instance{ServiceName: "backend-a", Namespace: "default", InstanceID: "i1", Address: "10.0.0.1", Port: 9000})
+	time.Sleep(20 * time.Millisecond)
+
+	if err := r.Reconcile(context.Background()); err != nil {
+		t.Fatalf("Reconcile: %v", err)
+	}
+	instances, err := reg.GetService("default", "backend-a")
+	if err != nil {
+		t.Fatalf("GetService: %v", err)
+	}
+	if instances[0].Healthy {
+		t.Fatal("expected instance to be marked unhealthy after reconcile sweeps stale instances")
+	}
+}
+
+func TestBackoffIncreasesWithAttemptsAndCapsAtMax(t *testing.T) {
+	prev := time.Duration(0)
+	for attempt := 1; attempt <= 3; attempt++ {
+		d := backoff(attempt)
+		if d <= prev {
+			t.Errorf("backoff(%d) = %v, want > backoff(%d) = %v", attempt, d, attempt-1, prev)
+		}
+		prev = d
+	}
+	capped := backoff(10)
+	if capped > maxBackoff+maxBackoff/5 {
+		t.Errorf("backoff(10) = %v, want capped near maxBackoff=%v", capped, maxBackoff)
 	}
 }

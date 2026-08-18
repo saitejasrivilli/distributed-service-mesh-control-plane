@@ -13,6 +13,7 @@ type Config struct {
 	HTTPAddr          string
 	XDSAddr           string
 	ReconcileInterval time.Duration
+	StaleAfter        time.Duration
 	ShutdownTimeout   time.Duration
 	ReadTimeout       time.Duration
 	WriteTimeout      time.Duration
@@ -26,6 +27,7 @@ func Default() Config {
 		HTTPAddr:          ":8080",
 		XDSAddr:           ":18000",
 		ReconcileInterval: 2 * time.Second,
+		StaleAfter:        15 * time.Second,
 		ShutdownTimeout:   10 * time.Second,
 		ReadTimeout:       5 * time.Second,
 		WriteTimeout:      10 * time.Second,
@@ -54,6 +56,13 @@ func Load() (Config, error) {
 			return Config{}, fmt.Errorf("parse CP_RECONCILE_INTERVAL: %w", err)
 		}
 		cfg.ReconcileInterval = d
+	}
+	if v := os.Getenv("CP_STALE_AFTER"); v != "" {
+		d, err := time.ParseDuration(v)
+		if err != nil {
+			return Config{}, fmt.Errorf("parse CP_STALE_AFTER: %w", err)
+		}
+		cfg.StaleAfter = d
 	}
 	if v := os.Getenv("CP_SHUTDOWN_TIMEOUT"); v != "" {
 		d, err := time.ParseDuration(v)
@@ -107,6 +116,9 @@ func (c Config) Validate() error {
 	}
 	if c.ReconcileInterval <= 0 {
 		return fmt.Errorf("reconcile interval must be positive, got %s", c.ReconcileInterval)
+	}
+	if c.StaleAfter <= 0 {
+		return fmt.Errorf("stale after must be positive, got %s", c.StaleAfter)
 	}
 	if c.ShutdownTimeout <= 0 {
 		return fmt.Errorf("shutdown timeout must be positive, got %s", c.ShutdownTimeout)

@@ -39,6 +39,7 @@ type Registry interface {
 	ListServices(namespace string) []string
 	GetService(namespace, serviceName string) ([]Instance, error)
 	HealthyInstances(namespace, serviceName string, staleAfter time.Duration) []Instance
+	SweepStale(staleAfter time.Duration) []Instance
 }
 
 // InMemory is a Registry backed by an in-process map, safe for concurrent use.
@@ -166,6 +167,33 @@ func (r *InMemory) HealthyInstances(namespace, serviceName string, staleAfter ti
 		out = append(out, inst)
 	}
 	return out
+}
+
+// SweepStale scans every service across all namespaces and transitions any
+// instance whose last heartbeat exceeds staleAfter from Healthy=true to
+// Healthy=false, persisting the state transition (not just filtering it out
+// of reads, as HealthyInstances does). Returns the instances that just
+// transitioned, for logging/metrics. A staleAfter of zero disables sweeping.
+func (r *InMemory) SweepStale(staleAfter time.Duration) []Instance {
+	if staleAfter <= 0 {
+		return nil
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	now := r.now()
+	var transitioned []Instance
+	for _, instances := range r.svcs {
+		for id, inst := range instances {
+			if inst.Healthy && now.Sub(inst.LastHeartbeat) > staleAfter {
+				inst.Healthy = false
+				instances[id] = inst
+				transitioned = append(transitioned, inst)
+			}
+		}
+	}
+	sort.Slice(transitioned, func(i, j int) bool { return transitioned[i].InstanceID < transitioned[j].InstanceID })
+	return transitioned
 }
 
 func sortedInstances(m map[string]Instance) []Instance {

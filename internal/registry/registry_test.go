@@ -116,6 +116,63 @@ func TestHealthyInstancesExcludesUnhealthy(t *testing.T) {
 	}
 }
 
+func TestSweepStaleTransitionsHealthyToUnhealthy(t *testing.T) {
+	r := New()
+	fixed := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	r.now = func() time.Time { return fixed }
+	_ = r.Register(inst("i1"))
+
+	r.now = func() time.Time { return fixed.Add(1 * time.Hour) }
+	transitioned := r.SweepStale(10 * time.Second)
+	if len(transitioned) != 1 || transitioned[0].InstanceID != "i1" {
+		t.Fatalf("transitioned = %+v, want [i1]", transitioned)
+	}
+
+	got, _ := r.GetService("default", "svc-a")
+	if got[0].Healthy {
+		t.Fatal("expected instance to be persisted as unhealthy after sweep")
+	}
+}
+
+func TestSweepStaleDoesNotTouchFreshInstances(t *testing.T) {
+	r := New()
+	_ = r.Register(inst("i1"))
+	transitioned := r.SweepStale(10 * time.Second)
+	if len(transitioned) != 0 {
+		t.Fatalf("expected no transitions for fresh instance, got %+v", transitioned)
+	}
+}
+
+func TestSweepStaleRecoversAfterHeartbeat(t *testing.T) {
+	r := New()
+	fixed := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	r.now = func() time.Time { return fixed }
+	_ = r.Register(inst("i1"))
+
+	r.now = func() time.Time { return fixed.Add(1 * time.Hour) }
+	r.SweepStale(10 * time.Second)
+
+	// Recovery: a heartbeat marks the instance healthy again.
+	if err := r.Heartbeat("default", "svc-a", "i1"); err != nil {
+		t.Fatalf("Heartbeat: %v", err)
+	}
+	got, _ := r.GetService("default", "svc-a")
+	if !got[0].Healthy {
+		t.Fatal("expected instance to recover to healthy after heartbeat")
+	}
+}
+
+func TestSweepStaleZeroDisablesSweeping(t *testing.T) {
+	r := New()
+	fixed := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	r.now = func() time.Time { return fixed }
+	_ = r.Register(inst("i1"))
+	r.now = func() time.Time { return fixed.Add(1 * time.Hour) }
+	if got := r.SweepStale(0); got != nil {
+		t.Fatalf("expected nil with staleAfter=0, got %+v", got)
+	}
+}
+
 func TestNamespaceIsolation(t *testing.T) {
 	r := New()
 	_ = r.Register(Instance{ServiceName: "svc-a", Namespace: "ns1", InstanceID: "i1"})

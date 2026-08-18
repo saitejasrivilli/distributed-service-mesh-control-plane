@@ -1,5 +1,36 @@
 # Changelog
 
+## v0.6.0 — Health-aware discovery and reconciliation
+
+- `internal/registry.SweepStale(staleAfter)`: transitions instances from
+  `Healthy=true` to `Healthy=false` once `now - LastHeartbeat` exceeds
+  `staleAfter` — a persisted state transition (visible via `GET
+  /v1/services/{name}`), not just a read-time filter. Recovers to
+  `Healthy=true` on the next heartbeat.
+- `internal/reconciliation.Reconciler`: sweeps stale instances and
+  rebuilds/publishes the snapshot in one reconcile pass; `Run` now applies
+  exponential backoff with jitter (capped at 30s) after consecutive
+  reconcile failures, resetting on success.
+- `internal/config`: new `CP_STALE_AFTER` setting (default `15s`),
+  validated.
+- Core invariant made explicit and documented:
+  **invalid configuration is never published to Envoy** — enforced at two
+  layers (route spec validation before the routing store, snapshot
+  consistency check before publish).
+- `docs/runbooks/`: `backend-failure.md`, `control-plane-failure.md`
+  (including an honest single-point-of-failure discussion for the
+  single-node xDS design), `stale-endpoint.md`, `config-rejection.md`.
+- `scripts/health_reconciliation_smoke_test.sh`: live proof against real
+  Docker containers — a backend with no heartbeats goes stale, is excluded
+  from Envoy's EDS with zero restart, then recovers on the next heartbeat,
+  with Envoy resuming traffic with zero restart.
+- Unit tests: `SweepStale` transition/no-op/recovery/disabled-at-zero (4
+  tests in `internal/registry`), reconciler sweep integration and backoff
+  monotonicity/cap (2 new tests in `internal/reconciliation`). All pass
+  under `-race`.
+- ADR-006 documents why the health sweep and snapshot rebuild happen in a
+  single reconcile pass.
+
 ## v0.5.0 — Service-to-service traffic management
 
 - `internal/routing`: `Spec` (version-weighted splits, retry policy,

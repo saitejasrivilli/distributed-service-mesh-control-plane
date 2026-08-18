@@ -111,6 +111,29 @@ unmodified. See ADR-007 for the validation rules and the real measured
 canary-split numbers (90/10 measured as 86.5/13.5, then a live shift to
 50/50 measured as 46/54, zero Envoy restarts).
 
+## Health-aware reconciliation (v0.6.0)
+
+```
+internal/registry.SweepStale        transitions Healthy=true -> false past CP_STALE_AFTER, persisted
+internal/reconciliation.Reconciler   sweeps stale instances + rebuilds/publishes snapshot, in one pass
+                                     exponential backoff+jitter on repeated reconcile failure
+docs/runbooks/                      backend-failure, control-plane-failure, stale-endpoint, config-rejection
+scripts/health_reconciliation_smoke_test.sh   live proof against real Docker containers
+```
+
+Core invariant carried forward from v0.4.0 and made explicit in
+`docs/runbooks/config-rejection.md`: **invalid configuration is never
+published to Envoy.** Route specs are validated before ever reaching the
+routing store (`routing.Spec.Validate`); snapshots are checked for
+consistency before publish (`xds.BuildSnapshot` -> `snap.Consistent()`); on
+either failure, the previous snapshot remains authoritative.
+
+See ADR-006 for why the health sweep and snapshot rebuild happen in one
+reconcile pass (not two independently-scheduled loops), and
+`docs/runbooks/control-plane-failure.md` for the honest single-point-of-
+failure trade-off of a centralized coordinator (a dedicated ADR for
+failure handling is planned as this project's runbooks mature).
+
 ## Components
 
 ```
