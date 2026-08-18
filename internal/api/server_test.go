@@ -11,16 +11,18 @@ import (
 	"github.com/saitejasrivillibhutturu/distributed-service-mesh-control-plane/internal/config"
 	"github.com/saitejasrivillibhutturu/distributed-service-mesh-control-plane/internal/logging"
 	"github.com/saitejasrivillibhutturu/distributed-service-mesh-control-plane/internal/metrics"
+	"github.com/saitejasrivillibhutturu/distributed-service-mesh-control-plane/internal/registry"
 )
 
 func testServer(t *testing.T, addr string) (*Server, *AtomicReadiness) {
 	t.Helper()
 	cfg := config.Default()
 	cfg.HTTPAddr = addr
-	reg := metrics.New()
+	metricsReg := metrics.New()
 	readiness := &AtomicReadiness{}
 	logger := logging.New("error")
-	return New(cfg, logger, reg, readiness), readiness
+	reg := registry.New()
+	return New(cfg, logger, metricsReg, readiness, reg), readiness
 }
 
 func TestHealthzAlwaysOK(t *testing.T) {

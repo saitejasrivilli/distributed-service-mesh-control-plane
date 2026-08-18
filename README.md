@@ -8,22 +8,39 @@ discovery, and Kubernetes deployment. Built to close the specialized gap
 between general distributed-systems experience and service-mesh/container-
 networking infrastructure work.
 
-**Status: v0.1.0 — control-plane foundation only.** Registry, Envoy
-integration, and xDS land in subsequent releases (see `CHANGELOG.md`).
+**Status: v0.2.0 — control-plane foundation + service registry/discovery.**
+Envoy integration and xDS land in subsequent releases (see `CHANGELOG.md`).
 
 This is an independent service-mesh implementation inspired by production
 service-discovery and traffic-management architectures. It is not an
 implementation of AWS ECS Service Connect, AWS Service Gateway, or AWS Cloud
 Map.
 
-## What's here in v0.1.0
+## What's here
 
+**v0.1.0**
 - Go control-plane process with env-driven, validated configuration
 - HTTP management API: `GET /healthz`, `GET /readyz`, `GET /metrics`
 - Structured JSON logging with request correlation IDs
 - Prometheus metrics (request count, latency histograms)
 - Graceful shutdown on SIGINT/SIGTERM with bounded drain timeout
 - Minimal demo backend (`cmd/demo-service`) for later Envoy sidecar wiring
+
+**v0.2.0**
+- In-memory, thread-safe service registry with health-aware, stale-filtered
+  endpoint lookups (see `docs/adr/ADR-002-service-registry.md`)
+- Management API: register/deregister/heartbeat/list instances
+
+```
+curl -X POST localhost:8080/v1/services -d '{
+  "service_name":"backend-a","instance_id":"i1",
+  "address":"10.0.0.5","port":9000
+}'
+curl localhost:8080/v1/services/backend-a
+curl -X POST localhost:8080/v1/services/backend-a/instances/i1/heartbeat
+curl "localhost:8080/v1/services/backend-a/instances?healthy=true"
+curl -X DELETE localhost:8080/v1/services/backend-a/instances/i1
+```
 
 See `docs/architecture/system.md` for the design and `docs/adr/` for decision
 records.

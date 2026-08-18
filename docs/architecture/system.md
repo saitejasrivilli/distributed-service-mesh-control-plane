@@ -1,12 +1,35 @@
-# System Architecture — v0.1.0
+# System Architecture — v0.1.0 / v0.2.0
 
-## Scope of this release
+## Scope
 
-v0.1.0 is the control-plane process skeleton only. No registry, no xDS, no
-Envoy integration yet — those arrive in v0.2.0+. This release exists to prove
-out the operational foundation every later release depends on: config
-loading/validation, structured logging with correlation IDs, Prometheus
-metrics, graceful shutdown, and health/readiness endpoints.
+v0.1.0 is the control-plane process skeleton: config loading/validation,
+structured logging with correlation IDs, Prometheus metrics, graceful
+shutdown, and health/readiness endpoints.
+
+v0.2.0 adds the in-memory service registry and its management API
+(register/deregister/heartbeat/list). No xDS or Envoy integration yet —
+those arrive in v0.3.0+.
+
+## Service registry (v0.2.0)
+
+`internal/registry.Registry` is the storage interface; `InMemory` is the
+current implementation, a mutex-guarded map keyed by
+`namespace + "/" + serviceName`. See ADR-002 for the health/staleness model
+and why persistence was deliberately deferred.
+
+Management endpoints (`internal/api/registry_handlers.go`):
+
+```
+POST   /v1/services                                  register an instance
+DELETE /v1/services/{name}/instances/{id}             deregister an instance
+POST   /v1/services/{name}/instances/{id}/heartbeat   refresh liveness
+GET    /v1/services/{name}                            all instances
+GET    /v1/services/{name}/instances?healthy=true     healthy-only, stale-filtered
+```
+
+All registry endpoints accept an optional `?namespace=` query param
+(`GET`/`DELETE`) or `namespace` body field (`POST`), defaulting to
+`"default"`.
 
 ## Components
 

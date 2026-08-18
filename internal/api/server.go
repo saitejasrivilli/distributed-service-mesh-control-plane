@@ -16,6 +16,7 @@ import (
 	"github.com/saitejasrivillibhutturu/distributed-service-mesh-control-plane/internal/config"
 	"github.com/saitejasrivillibhutturu/distributed-service-mesh-control-plane/internal/logging"
 	"github.com/saitejasrivillibhutturu/distributed-service-mesh-control-plane/internal/metrics"
+	"github.com/saitejasrivillibhutturu/distributed-service-mesh-control-plane/internal/registry"
 )
 
 // ReadinessChecker reports whether the control plane is ready to serve traffic.
@@ -40,16 +41,24 @@ type Server struct {
 	httpServer *http.Server
 	logger     *slog.Logger
 	readiness  ReadinessChecker
+	registry   registry.Registry
 }
 
-// New constructs a Server wired with health, readiness, and metrics endpoints.
-func New(cfg config.Config, logger *slog.Logger, metricsReg *metrics.Registry, readiness ReadinessChecker) *Server {
+// New constructs a Server wired with health, readiness, metrics, and service
+// registry management endpoints.
+func New(cfg config.Config, logger *slog.Logger, metricsReg *metrics.Registry, readiness ReadinessChecker, reg registry.Registry) *Server {
 	mux := http.NewServeMux()
-	s := &Server{logger: logger, readiness: readiness}
+	s := &Server{logger: logger, readiness: readiness, registry: reg}
 
 	mux.HandleFunc("GET /healthz", s.handleHealthz)
 	mux.HandleFunc("GET /readyz", s.handleReadyz)
 	mux.Handle("GET /metrics", promhttp.HandlerFor(metricsReg.Gatherer, promhttp.HandlerOpts{}))
+
+	mux.HandleFunc("POST /v1/services", s.handleRegisterService)
+	mux.HandleFunc("DELETE /v1/services/{name}/instances/{id}", s.handleDeregisterInstance)
+	mux.HandleFunc("POST /v1/services/{name}/instances/{id}/heartbeat", s.handleHeartbeat)
+	mux.HandleFunc("GET /v1/services/{name}", s.handleGetService)
+	mux.HandleFunc("GET /v1/services/{name}/instances", s.handleListInstances)
 
 	handler := withCorrelationID(withMetrics(mux, metricsReg))
 

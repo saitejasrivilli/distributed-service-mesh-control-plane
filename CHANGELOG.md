@@ -1,5 +1,22 @@
 # Changelog
 
+## v0.2.0 — Service registry and discovery
+
+- In-memory, thread-safe service registry (`internal/registry`) behind a
+  `Registry` interface: register (idempotent), deregister, heartbeat,
+  list services, get service, health-aware endpoint filtering with
+  stale-instance exclusion.
+- Namespace isolation, deterministic (instance-ID-ordered) listings.
+- Management API: `POST /v1/services`, `DELETE
+  /v1/services/{name}/instances/{id}`, `POST
+  /v1/services/{name}/instances/{id}/heartbeat`, `GET /v1/services/{name}`,
+  `GET /v1/services/{name}/instances`.
+- Full test suite: registration, deregistration, heartbeat, stale expiration,
+  duplicate registration, concurrent registration/deregistration, namespace
+  isolation, healthy-endpoint filtering, restart-from-empty behavior, plus
+  HTTP-layer integration tests for every endpoint. Passes `go vet`, `gofmt`,
+  `golangci-lint`, and `go test -race`.
+
 ## v0.1.0 — Control-plane foundation
 
 - Env-driven configuration (`internal/config`) with explicit validation.

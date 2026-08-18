@@ -13,6 +13,7 @@ import (
 	"github.com/saitejasrivillibhutturu/distributed-service-mesh-control-plane/internal/config"
 	"github.com/saitejasrivillibhutturu/distributed-service-mesh-control-plane/internal/logging"
 	"github.com/saitejasrivillibhutturu/distributed-service-mesh-control-plane/internal/metrics"
+	"github.com/saitejasrivillibhutturu/distributed-service-mesh-control-plane/internal/registry"
 )
 
 // ControlPlane owns the lifecycle of the control-plane's HTTP surface.
@@ -26,9 +27,10 @@ type ControlPlane struct {
 // New constructs a ControlPlane from cfg with its own dependencies injected.
 func New(cfg config.Config) *ControlPlane {
 	logger := logging.New(cfg.LogLevel)
-	reg := metrics.New()
+	metricsReg := metrics.New()
 	readiness := &api.AtomicReadiness{}
-	server := api.New(cfg, logger, reg, readiness)
+	svcRegistry := registry.New()
+	server := api.New(cfg, logger, metricsReg, readiness, svcRegistry)
 	return &ControlPlane{cfg: cfg, logger: logger, server: server, readiness: readiness}
 }
 
