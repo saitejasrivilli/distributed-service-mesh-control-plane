@@ -134,6 +134,32 @@ reconcile pass (not two independently-scheduled loops), and
 failure trade-off of a centralized coordinator (a dedicated ADR for
 failure handling is planned as this project's runbooks mature).
 
+## Kubernetes deployment (v0.7.0)
+
+```
+cmd/k8s-watcher                 bridges Kubernetes Endpoints -> registry HTTP API (no hardcoded pod IPs)
+deployments/kubernetes/control-plane.yaml   Deployment + Service, readiness/liveness probes, resource limits
+deployments/kubernetes/backend-a.yaml       Deployment (3 replicas) + Service
+deployments/kubernetes/k8s-watcher.yaml     ServiceAccount/Role/RoleBinding (get/list/watch endpoints only) + Deployment
+deployments/kubernetes/envoy-dynamic.yaml   ConfigMap (ADS bootstrap) + Deployment + Service
+scripts/k8s_smoke_test.sh       builds+loads image into kind, deploys, proves discovery + 3->5->2 scaling live
+```
+
+`k8s-watcher` polls the `backend-a` Service's `Endpoints` every 2s and
+converges the registry to match — registering new pod IPs, heartbeating
+known ones, deregistering pods that disappeared. Instance IDs are pod
+names, so registry state is directly traceable to `kubectl get pods`. See
+ADR-009 for why polling was chosen over the watch API for this release, and
+why this is a separate bridge process rather than baking Kubernetes
+awareness into `internal/registry` directly (keeps the registry
+platform-agnostic — the same HTTP API also serves the plain Docker Compose
+demos from v0.1.0-v0.6.0).
+
+Verified live against a real `kind` cluster: 3 replicas discovered with
+zero hardcoded IPs, scaled to 5 then to 2, registry instance count and
+Envoy traffic tracking correctly at every step with zero restarts anywhere
+in the chain (control plane, Envoy, or backends).
+
 ## Components
 
 ```

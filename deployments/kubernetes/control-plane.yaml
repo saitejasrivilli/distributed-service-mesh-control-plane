@@ -1,0 +1,47 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: control-plane
+  labels: { app: control-plane }
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: control-plane }
+  template:
+    metadata:
+      labels: { app: control-plane }
+    spec:
+      containers:
+        - name: control-plane
+          image: mesh/control-plane:dev
+          imagePullPolicy: IfNotPresent
+          command: ["/control-plane"]
+          env:
+            - { name: CP_HTTP_ADDR, value: ":8080" }
+            - { name: CP_XDS_ADDR, value: ":18000" }
+            - { name: CP_RECONCILE_INTERVAL, value: "1s" }
+            - { name: CP_STALE_AFTER, value: "10s" }
+          ports:
+            - { name: http, containerPort: 8080 }
+            - { name: xds, containerPort: 18000 }
+          readinessProbe:
+            httpGet: { path: /readyz, port: http }
+            initialDelaySeconds: 1
+            periodSeconds: 2
+          livenessProbe:
+            httpGet: { path: /healthz, port: http }
+            initialDelaySeconds: 1
+            periodSeconds: 5
+          resources:
+            requests: { cpu: 50m, memory: 32Mi }
+            limits: { cpu: 250m, memory: 128Mi }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: control-plane
+spec:
+  selector: { app: control-plane }
+  ports:
+    - { name: http, port: 8080, targetPort: 8080 }
+    - { name: xds, port: 18000, targetPort: 18000 }

@@ -1,5 +1,29 @@
 # Changelog
 
+## v0.7.0 — Kubernetes container networking
+
+- `cmd/k8s-watcher`: bridges Kubernetes `Endpoints` to the existing registry
+  HTTP API — polls every 2s, registers new pod IPs, heartbeats known ones,
+  deregisters pods no longer present. No pod IP is ever hardcoded anywhere
+  in the deployment.
+- `deployments/kubernetes/`: `control-plane.yaml`, `backend-a.yaml` (3
+  replicas), `k8s-watcher.yaml` (ServiceAccount/Role/RoleBinding scoped to
+  `get/list/watch` on `endpoints` only), `envoy-dynamic.yaml` (ConfigMap +
+  Deployment using the same ADS bootstrap as v0.4.0's Docker demo).
+  Deployments/Services use readiness/liveness probes and resource
+  requests/limits throughout.
+- `scripts/k8s_smoke_test.sh`: builds the image, loads it into a `kind`
+  cluster, deploys the full stack, and proves live: 3 replicas discovered
+  with zero hardcoded IPs; traffic flows client -> Envoy -> a
+  k8s-discovered backend; scaling to 5 then to 2 replicas is reflected in
+  the registry within seconds at every step, with traffic continuing
+  throughout and zero restarts anywhere in the chain.
+- ADR-009 documents why Kubernetes awareness lives in a separate bridge
+  process rather than inside `internal/registry` (keeps the registry
+  platform-agnostic, serving both the Kubernetes and plain-Docker-Compose
+  deployment paths through the same HTTP API), and why polling was chosen
+  over the Kubernetes watch API for this release's scale.
+
 ## v0.6.0 — Health-aware discovery and reconciliation
 
 - `internal/registry.SweepStale(staleAfter)`: transitions instances from

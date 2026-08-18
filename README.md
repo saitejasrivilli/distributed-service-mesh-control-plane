@@ -8,10 +8,10 @@ discovery, and Kubernetes deployment. Built to close the specialized gap
 between general distributed-systems experience and service-mesh/container-
 networking infrastructure work.
 
-**Status: v0.6.0 — control-plane foundation + service registry/discovery +
+**Status: v0.7.0 — control-plane foundation + service registry/discovery +
 Envoy integration + dynamic xDS + traffic management + health-aware
-reconciliation.** Kubernetes deployment lands in v0.7.0 (see
-`CHANGELOG.md`).
+reconciliation + Kubernetes deployment.** Observability lands in v0.8.0
+(see `CHANGELOG.md`).
 
 This is an independent service-mesh implementation inspired by production
 service-discovery and traffic-management architectures. It is not an
@@ -96,6 +96,21 @@ curl -X PUT localhost:8080/v1/routes/backend-a -d '{"splits":[{"version":"v1","w
 ./scripts/health_reconciliation_smoke_test.sh   # live proof: stale -> unhealthy -> Envoy avoids -> heartbeat -> recovered
 ```
 
+**v0.7.0**
+- Deployed into Kubernetes (`kind`): control-plane, 3x backend-a, Envoy,
+  and `k8s-watcher` bridging Kubernetes Endpoints to the registry — zero
+  hardcoded pod IPs
+- Scaling backend-a 3 -> 5 -> 2 replicas is reflected in the registry and
+  Envoy's config within seconds, traffic continues throughout
+
+```
+kind create cluster --name mesh-demo
+docker build -t mesh/control-plane:dev .
+kind load docker-image mesh/control-plane:dev --name mesh-demo
+kubectl apply -f deployments/kubernetes/
+./scripts/k8s_smoke_test.sh   # full build+deploy+discovery+scaling test
+```
+
 See `docs/architecture/system.md` for the design and `docs/adr/` for decision
 records.
 
@@ -123,5 +138,5 @@ golangci-lint run ./...
 
 ## Roadmap
 
-v0.7.0 Kubernetes · v0.8.0 observability · v0.9.0 scale/perf validation ·
-v1.0.0 production-quality release.
+v0.8.0 observability · v0.9.0 scale/perf validation · v1.0.0
+production-quality release.

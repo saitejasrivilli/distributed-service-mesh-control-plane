@@ -1,0 +1,40 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backend-a
+  labels: { app: backend-a }
+spec:
+  replicas: 3
+  selector:
+    matchLabels: { app: backend-a }
+  template:
+    metadata:
+      labels: { app: backend-a }
+    spec:
+      containers:
+        - name: backend-a
+          image: mesh/control-plane:dev
+          imagePullPolicy: IfNotPresent
+          command: ["/demo-service", "-addr=:9000", "-name=backend-a"]
+          ports:
+            - { name: http, containerPort: 9000 }
+          readinessProbe:
+            httpGet: { path: /healthz, port: http }
+            initialDelaySeconds: 1
+            periodSeconds: 2
+          livenessProbe:
+            httpGet: { path: /healthz, port: http }
+            initialDelaySeconds: 1
+            periodSeconds: 5
+          resources:
+            requests: { cpu: 25m, memory: 16Mi }
+            limits: { cpu: 100m, memory: 64Mi }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: backend-a
+spec:
+  selector: { app: backend-a }
+  ports:
+    - { name: http, port: 9000, targetPort: 9000 }

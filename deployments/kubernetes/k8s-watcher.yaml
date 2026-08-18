@@ -1,0 +1,54 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: k8s-watcher
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: k8s-watcher
+rules:
+  - apiGroups: [""]
+    resources: ["endpoints"]
+    verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: k8s-watcher
+subjects:
+  - kind: ServiceAccount
+    name: k8s-watcher
+roleRef:
+  kind: Role
+  name: k8s-watcher
+  apiGroup: rbac.authorization.k8s.io
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: k8s-watcher
+  labels: { app: k8s-watcher }
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: k8s-watcher }
+  template:
+    metadata:
+      labels: { app: k8s-watcher }
+    spec:
+      serviceAccountName: k8s-watcher
+      containers:
+        - name: k8s-watcher
+          image: mesh/control-plane:dev
+          imagePullPolicy: IfNotPresent
+          command:
+            - /k8s-watcher
+            - -namespace=default
+            - -service=backend-a
+            - -control-plane-addr=http://control-plane:8080
+            - -port=9000
+            - -poll-interval=2s
+          resources:
+            requests: { cpu: 25m, memory: 16Mi }
+            limits: { cpu: 100m, memory: 64Mi }
