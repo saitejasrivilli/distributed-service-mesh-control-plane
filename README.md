@@ -8,11 +8,11 @@ discovery, and Kubernetes deployment. Built to close the specialized gap
 between general distributed-systems experience and service-mesh/container-
 networking infrastructure work.
 
-**Status: v0.8.0 — control-plane foundation + service registry/discovery +
+**Status: v0.9.0 — control-plane foundation + service registry/discovery +
 Envoy integration + dynamic xDS + traffic management + health-aware
-reconciliation + Kubernetes deployment + observability
-(Prometheus/Grafana/debug APIs).** Scale/performance validation lands in
-v0.9.0 (see `CHANGELOG.md`).
+reconciliation + Kubernetes deployment + observability + measured
+scale/performance validation.** v1.0.0 (production-quality release) is
+next (see `CHANGELOG.md`).
 
 This is an independent service-mesh implementation inspired by production
 service-discovery and traffic-management architectures. It is not an
@@ -127,6 +127,20 @@ curl localhost:8080/v1/debug/envoys
 curl localhost:8080/v1/debug/config/backend-a
 ```
 
+**v0.9.0**
+- Measured (not invented) scale/perf numbers: see
+  `test/benchmark/results/v0.9.0_scale.json`
+- 100 services / 1000 endpoints snapshot generation: ~0.83ms/op
+- Snapshot propagation to 10/25/50 concurrent xDS clients: 185-203ms,
+  flat across client counts
+- 4.58M registry churn operations in 2s, 0 reconciliation failures
+
+```
+go test ./internal/xds/... -bench=BuildSnapshot -benchmem
+go test ./test/benchmark/... -v
+curl localhost:8080/debug/pprof/heap -o heap.pprof
+```
+
 See `docs/architecture/system.md` for the design and `docs/adr/` for decision
 records.
 
@@ -154,4 +168,4 @@ golangci-lint run ./...
 
 ## Roadmap
 
-v0.9.0 scale/perf validation · v1.0.0 production-quality release.
+v1.0.0 production-quality release.

@@ -50,6 +50,13 @@ func (s *Server) Serve(addr string) error {
 		return fmt.Errorf("xds: listen on %s: %w", addr, err)
 	}
 	s.logger.Info("xds server listening", "addr", addr)
+	return s.ServeListener(lis)
+}
+
+// ServeListener blocks accepting xDS connections on an already-created
+// listener. Exposed separately from Serve so tests can bind an ephemeral
+// port and learn its address before the server starts accepting.
+func (s *Server) ServeListener(lis net.Listener) error {
 	return s.grpcServer.Serve(lis)
 }
 

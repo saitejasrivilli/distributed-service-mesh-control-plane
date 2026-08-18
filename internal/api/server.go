@@ -8,6 +8,7 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
+	"net/http/pprof"
 	"sync/atomic"
 	"time"
 
@@ -73,6 +74,13 @@ func New(cfg config.Config, logger *slog.Logger, metricsReg *metrics.Registry, r
 	mux.HandleFunc("GET /healthz", s.handleHealthz)
 	mux.HandleFunc("GET /readyz", s.handleReadyz)
 	mux.Handle("GET /metrics", promhttp.HandlerFor(metricsReg.Gatherer, promhttp.HandlerOpts{}))
+
+	// pprof profiling endpoints (v0.9.0 scale/perf validation tooling).
+	mux.HandleFunc("GET /debug/pprof/", pprof.Index)
+	mux.HandleFunc("GET /debug/pprof/cmdline", pprof.Cmdline)
+	mux.HandleFunc("GET /debug/pprof/profile", pprof.Profile)
+	mux.HandleFunc("GET /debug/pprof/symbol", pprof.Symbol)
+	mux.HandleFunc("GET /debug/pprof/trace", pprof.Trace)
 
 	mux.HandleFunc("POST /v1/services", s.handleRegisterService)
 	mux.HandleFunc("DELETE /v1/services/{name}/instances/{id}", s.handleDeregisterInstance)

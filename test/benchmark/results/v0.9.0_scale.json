@@ -1,0 +1,36 @@
+{
+  "release": "v0.9.0",
+  "measured_at": "2026-08-18T18:50:00-05:00",
+  "environment": "Apple M2, macOS, local (no cloud), go test -bench / go test, single machine",
+  "snapshot_generation_benchmarks": {
+    "tool": "go test ./internal/xds/... -bench=BuildSnapshot -benchmem",
+    "results": [
+      { "case": "10 services / 100 endpoints", "ns_per_op": 84546, "bytes_per_op": 190546, "allocs_per_op": 1510 },
+      { "case": "100 services / 1000 endpoints", "ns_per_op": 834733, "bytes_per_op": 1888862, "allocs_per_op": 14590 },
+      { "case": "100 services / 100 endpoints (1 per service)", "ns_per_op": 441315, "bytes_per_op": 794271, "allocs_per_op": 7688 }
+    ]
+  },
+  "xds_propagation_latency": {
+    "tool": "test/benchmark/xds_scale_test.go (real gRPC ADS clients against a real running control plane, real network sockets on localhost)",
+    "note": "Reconcile interval in this test was 200ms; measured latency is dominated by that periodic tick, not by client fan-out cost -- flat across client counts confirms fan-out itself is cheap at this scale.",
+    "results": [
+      { "concurrent_envoy_clients": 10, "max_propagation_latency_ms": 202.5, "avg_propagation_latency_ms": 202.4 },
+      { "concurrent_envoy_clients": 25, "max_propagation_latency_ms": 192.9, "avg_propagation_latency_ms": 192.4 },
+      { "concurrent_envoy_clients": 50, "max_propagation_latency_ms": 185.6, "avg_propagation_latency_ms": 184.3 }
+    ]
+  },
+  "endpoint_churn": {
+    "tool": "test/benchmark/churn_test.go (real registry + real reconciler, 100 services / 1000 endpoints pre-populated, then 2s of continuous register+heartbeat+deregister churn)",
+    "results": {
+      "churn_operations_in_2s": 4577885,
+      "reconcile_failures": 0,
+      "heap_alloc_before_churn_kb": 1733,
+      "heap_alloc_after_churn_kb": 6212,
+      "heap_alloc_delta_kb": 4479
+    }
+  },
+  "not_yet_measured": [
+    "100 real Envoy proxy instances (this run used real gRPC ADS clients simulating Envoy's xDS behavior, not full Envoy binaries, due to local machine resource constraints)",
+    "control-plane CPU utilization under sustained load (requires longer-duration profiling run with pprof CPU profile, deferred)"
+  ]
+}
