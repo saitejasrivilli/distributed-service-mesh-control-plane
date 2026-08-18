@@ -1,5 +1,39 @@
 # Changelog
 
+## v0.8.0 — Observability and operational tooling
+
+- `internal/metrics`: new control-plane collectors — `services_total`,
+  `endpoints_total`, `envoy_connections_total`, `xds_updates_total` /
+  `xds_update_failures_total`, `config_version`,
+  `reconciliation_attempts_total` / `reconciliation_failures_total`,
+  `reconciliation_duration_seconds`, `stale_instances_transitioned_total`
+  — all updated directly inside `Reconciler.Reconcile`.
+- `internal/xds/tracker.go`: `ConnectionTracker` tracks currently-open xDS
+  streams and their negotiated node IDs via `serverv3.Callbacks`.
+- `internal/api/debug_handlers.go`: `GET /v1/debug/services/{name}`, `GET
+  /v1/debug/envoys`, `GET /v1/debug/config/{service}` — the latter reads
+  the reconciler's last *published* snapshot directly, so it reflects
+  exactly what Envoy was told (which can briefly differ from current
+  registry state around a change).
+- Root `docker-compose.yml` + `prometheus.yml` +
+  `deployments/docker/grafana/`: full observability stack (control-plane +
+  backend-a + Envoy + Prometheus + Grafana), with datasource and dashboard
+  auto-provisioned — no manual Grafana setup required.
+- Verified live: both Prometheus scrape targets (`control-plane`, `envoy`)
+  report `up`; after registering a backend, `controlplane_services_total`,
+  `endpoints_total`, `config_version`, and `reconciliation_attempts_total`
+  show real non-zero values; all three debug endpoints return real data
+  including a live Envoy connection (`node_id: demo-envoy`); the Grafana
+  dashboard auto-provisions and its queries were checked against Envoy's
+  actual `/stats/prometheus` metric names.
+- Unit tests: `ConnectionTracker` open/close/node-ID tracking (2 tests in
+  `internal/xds`), debug endpoint behavior including 404s before any
+  snapshot and correct reflection of a real built snapshot (5 tests in
+  `internal/api`). All pass under `-race`.
+- ADR-010 documents the design, including the honest trade-off that
+  `reconciliation_duration_seconds` measures control-plane build+publish
+  time, not true Envoy-side xDS ACK round-trip latency.
+
 ## v0.7.0 — Kubernetes container networking
 
 - `cmd/k8s-watcher`: bridges Kubernetes `Endpoints` to the existing registry

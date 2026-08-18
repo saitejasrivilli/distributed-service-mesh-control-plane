@@ -13,7 +13,26 @@ import (
 	"github.com/saitejasrivillibhutturu/distributed-service-mesh-control-plane/internal/metrics"
 	"github.com/saitejasrivillibhutturu/distributed-service-mesh-control-plane/internal/registry"
 	"github.com/saitejasrivillibhutturu/distributed-service-mesh-control-plane/internal/routing"
+	"github.com/saitejasrivillibhutturu/distributed-service-mesh-control-plane/internal/xds"
+
+	cachev3 "github.com/envoyproxy/go-control-plane/pkg/cache/v3"
 )
+
+// fakeReconciler is a minimal ReconcilerStatus for tests that don't exercise
+// a real reconciliation loop.
+type fakeReconciler struct {
+	snapshot *cachev3.Snapshot
+}
+
+func (f *fakeReconciler) Attempts() uint64                { return 0 }
+func (f *fakeReconciler) Failures() uint64                { return 0 }
+func (f *fakeReconciler) LastSnapshot() *cachev3.Snapshot { return f.snapshot }
+
+// fakeEnvoyTracker is a minimal EnvoyTracker for tests.
+type fakeEnvoyTracker struct{}
+
+func (f *fakeEnvoyTracker) Connected() []xds.ConnectedEnvoy { return nil }
+func (f *fakeEnvoyTracker) Count() int                      { return 0 }
 
 func testServer(t *testing.T, addr string) (*Server, *AtomicReadiness) {
 	t.Helper()
@@ -24,7 +43,7 @@ func testServer(t *testing.T, addr string) (*Server, *AtomicReadiness) {
 	logger := logging.New("error")
 	reg := registry.New()
 	routes := routing.NewStore()
-	return New(cfg, logger, metricsReg, readiness, reg, routes), readiness
+	return New(cfg, logger, metricsReg, readiness, reg, routes, &fakeReconciler{}, &fakeEnvoyTracker{}), readiness
 }
 
 func TestHealthzAlwaysOK(t *testing.T) {

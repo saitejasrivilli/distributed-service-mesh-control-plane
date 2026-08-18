@@ -8,6 +8,7 @@ import (
 	cachev3 "github.com/envoyproxy/go-control-plane/pkg/cache/v3"
 
 	"github.com/saitejasrivillibhutturu/distributed-service-mesh-control-plane/internal/logging"
+	"github.com/saitejasrivillibhutturu/distributed-service-mesh-control-plane/internal/metrics"
 	"github.com/saitejasrivillibhutturu/distributed-service-mesh-control-plane/internal/registry"
 	"github.com/saitejasrivillibhutturu/distributed-service-mesh-control-plane/internal/routing"
 )
@@ -16,7 +17,7 @@ func newTestReconciler() (*Reconciler, *registry.InMemory, cachev3.SnapshotCache
 	reg := registry.New()
 	routes := routing.NewStore()
 	cache := cachev3.NewSnapshotCache(true, cachev3.IDHash{}, nil)
-	r := New(reg, routes, cache, logging.New("error"), 15*time.Second)
+	r := New(reg, routes, cache, logging.New("error"), 15*time.Second, metrics.New())
 	return r, reg, cache
 }
 
@@ -87,7 +88,7 @@ func TestReconcileSweepsStaleInstances(t *testing.T) {
 	reg := registry.New()
 	routes := routing.NewStore()
 	cache := cachev3.NewSnapshotCache(true, cachev3.IDHash{}, nil)
-	r := New(reg, routes, cache, logging.New("error"), 10*time.Millisecond)
+	r := New(reg, routes, cache, logging.New("error"), 10*time.Millisecond, metrics.New())
 
 	_ = reg.Register(registry.Instance{ServiceName: "backend-a", Namespace: "default", InstanceID: "i1", Address: "10.0.0.1", Port: 9000})
 	time.Sleep(20 * time.Millisecond)

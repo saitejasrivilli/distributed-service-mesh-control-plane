@@ -38,11 +38,15 @@ func New(cfg config.Config) *ControlPlane {
 	readiness := &api.AtomicReadiness{}
 	svcRegistry := registry.New()
 	routeStore := routing.NewStore()
-	server := api.New(cfg, logger, metricsReg, readiness, svcRegistry, routeStore)
 
 	snapshotCache := cachev3.NewSnapshotCache(true, cachev3.IDHash{}, nil)
-	xdsServer := xds.NewServer(context.Background(), snapshotCache, nil, logger)
-	reconciler := reconciliation.New(svcRegistry, routeStore, snapshotCache, logger, cfg.StaleAfter)
+	connTracker := xds.NewConnectionTracker(
+		func() { metricsReg.EnvoyConnectionsTotal.Inc() },
+		func() { metricsReg.EnvoyConnectionsTotal.Dec() },
+	)
+	reconciler := reconciliation.New(svcRegistry, routeStore, snapshotCache, logger, cfg.StaleAfter, metricsReg)
+	xdsServer := xds.NewServer(context.Background(), snapshotCache, connTracker.Callbacks(), logger)
+	server := api.New(cfg, logger, metricsReg, readiness, svcRegistry, routeStore, reconciler, connTracker)
 
 	return &ControlPlane{
 		cfg:        cfg,

@@ -13,12 +13,28 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
+	cachev3 "github.com/envoyproxy/go-control-plane/pkg/cache/v3"
+
 	"github.com/saitejasrivillibhutturu/distributed-service-mesh-control-plane/internal/config"
 	"github.com/saitejasrivillibhutturu/distributed-service-mesh-control-plane/internal/logging"
 	"github.com/saitejasrivillibhutturu/distributed-service-mesh-control-plane/internal/metrics"
 	"github.com/saitejasrivillibhutturu/distributed-service-mesh-control-plane/internal/registry"
 	"github.com/saitejasrivillibhutturu/distributed-service-mesh-control-plane/internal/routing"
+	"github.com/saitejasrivillibhutturu/distributed-service-mesh-control-plane/internal/xds"
 )
+
+// ReconcilerStatus exposes reconciler introspection for debug endpoints.
+type ReconcilerStatus interface {
+	Attempts() uint64
+	Failures() uint64
+	LastSnapshot() *cachev3.Snapshot
+}
+
+// EnvoyTracker exposes connected-Envoy introspection for debug endpoints.
+type EnvoyTracker interface {
+	Connected() []xds.ConnectedEnvoy
+	Count() int
+}
 
 // ReadinessChecker reports whether the control plane is ready to serve traffic.
 type ReadinessChecker interface {
@@ -44,13 +60,15 @@ type Server struct {
 	readiness  ReadinessChecker
 	registry   registry.Registry
 	routes     *routing.Store
+	reconciler ReconcilerStatus
+	envoys     EnvoyTracker
 }
 
 // New constructs a Server wired with health, readiness, metrics, service
-// registry, and traffic-management management endpoints.
-func New(cfg config.Config, logger *slog.Logger, metricsReg *metrics.Registry, readiness ReadinessChecker, reg registry.Registry, routes *routing.Store) *Server {
+// registry, traffic-management, and debug/observability endpoints.
+func New(cfg config.Config, logger *slog.Logger, metricsReg *metrics.Registry, readiness ReadinessChecker, reg registry.Registry, routes *routing.Store, reconciler ReconcilerStatus, envoys EnvoyTracker) *Server {
 	mux := http.NewServeMux()
-	s := &Server{logger: logger, readiness: readiness, registry: reg, routes: routes}
+	s := &Server{logger: logger, readiness: readiness, registry: reg, routes: routes, reconciler: reconciler, envoys: envoys}
 
 	mux.HandleFunc("GET /healthz", s.handleHealthz)
 	mux.HandleFunc("GET /readyz", s.handleReadyz)
@@ -65,6 +83,10 @@ func New(cfg config.Config, logger *slog.Logger, metricsReg *metrics.Registry, r
 	mux.HandleFunc("PUT /v1/routes/{service}", s.handlePutRoute)
 	mux.HandleFunc("GET /v1/routes/{service}", s.handleGetRoute)
 	mux.HandleFunc("DELETE /v1/routes/{service}", s.handleDeleteRoute)
+
+	mux.HandleFunc("GET /v1/debug/services/{name}", s.handleDebugService)
+	mux.HandleFunc("GET /v1/debug/envoys", s.handleDebugEnvoys)
+	mux.HandleFunc("GET /v1/debug/config/{service}", s.handleDebugConfig)
 
 	handler := withCorrelationID(withMetrics(mux, metricsReg))
 

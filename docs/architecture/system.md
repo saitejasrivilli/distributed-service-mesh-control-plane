@@ -160,6 +160,26 @@ zero hardcoded IPs, scaled to 5 then to 2, registry instance count and
 Envoy traffic tracking correctly at every step with zero restarts anywhere
 in the chain (control plane, Envoy, or backends).
 
+## Observability (v0.8.0)
+
+```
+internal/metrics                control-plane metrics: services/endpoints/envoy-connections/
+                                 xds-updates+failures/config-version/reconciliation attempts+
+                                 failures+duration/stale-transitions, all updated inside Reconcile
+internal/xds/tracker.go          ConnectionTracker: tracks open xDS streams + node IDs via serverv3.Callbacks
+internal/api/debug_handlers.go  GET /v1/debug/services/{name}, /v1/debug/envoys, /v1/debug/config/{service}
+docker-compose.yml               root-level: control-plane + backend-a + envoy-dynamic + Prometheus + Grafana
+prometheus.yml                   scrapes control-plane:8080/metrics and envoy-dynamic:9901/stats/prometheus
+deployments/docker/grafana/      auto-provisioned datasource + dashboard (no manual setup)
+```
+
+`/v1/debug/config/{service}` deliberately reads the reconciler's last
+*published* snapshot, not current registry state — the two can differ for
+a few seconds around a change, and that gap is exactly what the endpoint
+is for. See ADR-010 for the full design and the live verification numbers
+(real Prometheus scrape targets up, real metric values, real Grafana
+dashboard auto-provisioned).
+
 ## Components
 
 ```

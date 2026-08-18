@@ -8,10 +8,11 @@ discovery, and Kubernetes deployment. Built to close the specialized gap
 between general distributed-systems experience and service-mesh/container-
 networking infrastructure work.
 
-**Status: v0.7.0 — control-plane foundation + service registry/discovery +
+**Status: v0.8.0 — control-plane foundation + service registry/discovery +
 Envoy integration + dynamic xDS + traffic management + health-aware
-reconciliation + Kubernetes deployment.** Observability lands in v0.8.0
-(see `CHANGELOG.md`).
+reconciliation + Kubernetes deployment + observability
+(Prometheus/Grafana/debug APIs).** Scale/performance validation lands in
+v0.9.0 (see `CHANGELOG.md`).
 
 This is an independent service-mesh implementation inspired by production
 service-discovery and traffic-management architectures. It is not an
@@ -111,6 +112,21 @@ kubectl apply -f deployments/kubernetes/
 ./scripts/k8s_smoke_test.sh   # full build+deploy+discovery+scaling test
 ```
 
+**v0.8.0**
+- Prometheus metrics for services/endpoints/xDS updates/reconciliation/
+  connected Envoys; Grafana dashboard auto-provisioned
+- Debug APIs: `GET /v1/debug/services/{name}`, `/v1/debug/envoys`,
+  `/v1/debug/config/{service}` (reflects exactly what was last published to
+  Envoy, not just current registry state)
+
+```
+docker compose up --build
+open http://localhost:3000       # Grafana, dashboard auto-provisioned
+open http://localhost:9090       # Prometheus
+curl localhost:8080/v1/debug/envoys
+curl localhost:8080/v1/debug/config/backend-a
+```
+
 See `docs/architecture/system.md` for the design and `docs/adr/` for decision
 records.
 
@@ -138,5 +154,4 @@ golangci-lint run ./...
 
 ## Roadmap
 
-v0.8.0 observability · v0.9.0 scale/perf validation · v1.0.0
-production-quality release.
+v0.9.0 scale/perf validation · v1.0.0 production-quality release.

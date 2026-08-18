@@ -1,0 +1,101 @@
+{
+  "title": "Service Mesh Control Plane",
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "panels": [
+    {
+      "id": 1,
+      "title": "Services / Endpoints",
+      "type": "stat",
+      "gridPos": { "h": 6, "w": 8, "x": 0, "y": 0 },
+      "targets": [
+        { "expr": "controlplane_services_total", "legendFormat": "services" },
+        { "expr": "controlplane_endpoints_total", "legendFormat": "endpoints" }
+      ]
+    },
+    {
+      "id": 2,
+      "title": "Connected Envoys",
+      "type": "stat",
+      "gridPos": { "h": 6, "w": 8, "x": 8, "y": 0 },
+      "targets": [{ "expr": "controlplane_envoy_connections_total" }]
+    },
+    {
+      "id": 3,
+      "title": "Config Version",
+      "type": "stat",
+      "gridPos": { "h": 6, "w": 8, "x": 16, "y": 0 },
+      "targets": [{ "expr": "controlplane_config_version" }]
+    },
+    {
+      "id": 4,
+      "title": "xDS Updates vs Failures (rate 5m)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 6 },
+      "targets": [
+        { "expr": "rate(controlplane_xds_updates_total[5m])", "legendFormat": "updates" },
+        { "expr": "rate(controlplane_xds_update_failures_total[5m])", "legendFormat": "failures" }
+      ]
+    },
+    {
+      "id": 5,
+      "title": "Reconciliation Attempts vs Failures (rate 5m)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 6 },
+      "targets": [
+        { "expr": "rate(controlplane_reconciliation_attempts_total[5m])", "legendFormat": "attempts" },
+        { "expr": "rate(controlplane_reconciliation_failures_total[5m])", "legendFormat": "failures" }
+      ]
+    },
+    {
+      "id": 6,
+      "title": "Reconciliation Duration (p50/p95/p99)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 14 },
+      "targets": [
+        { "expr": "histogram_quantile(0.50, rate(controlplane_reconciliation_duration_seconds_bucket[5m]))", "legendFormat": "p50" },
+        { "expr": "histogram_quantile(0.95, rate(controlplane_reconciliation_duration_seconds_bucket[5m]))", "legendFormat": "p95" },
+        { "expr": "histogram_quantile(0.99, rate(controlplane_reconciliation_duration_seconds_bucket[5m]))", "legendFormat": "p99" }
+      ]
+    },
+    {
+      "id": 7,
+      "title": "Stale Instances Transitioned (rate 5m)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 14 },
+      "targets": [
+        { "expr": "rate(controlplane_stale_instances_transitioned_total[5m])" }
+      ]
+    },
+    {
+      "id": 8,
+      "title": "Management API Request Rate by Status (5m)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 22 },
+      "targets": [
+        { "expr": "sum by (status) (rate(controlplane_http_requests_total[5m]))", "legendFormat": "{{status}}" }
+      ]
+    },
+    {
+      "id": 9,
+      "title": "Management API Latency (p50/p95/p99)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 22 },
+      "targets": [
+        { "expr": "histogram_quantile(0.50, rate(controlplane_http_request_duration_seconds_bucket[5m]))", "legendFormat": "p50" },
+        { "expr": "histogram_quantile(0.95, rate(controlplane_http_request_duration_seconds_bucket[5m]))", "legendFormat": "p95" },
+        { "expr": "histogram_quantile(0.99, rate(controlplane_http_request_duration_seconds_bucket[5m]))", "legendFormat": "p99" }
+      ]
+    },
+    {
+      "id": 10,
+      "title": "Envoy: Upstream RQ by Response Code Class (rate 5m)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 30 },
+      "targets": [
+        { "expr": "sum by (envoy_response_code_class) (rate(envoy_cluster_upstream_rq_xx[5m]))", "legendFormat": "{{envoy_response_code_class}}xx" }
+      ]
+    }
+  ]
+}

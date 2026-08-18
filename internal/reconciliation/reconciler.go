@@ -8,11 +8,13 @@ import (
 	"fmt"
 	"log/slog"
 	"math/rand"
+	"sync"
 	"sync/atomic"
 	"time"
 
 	cachev3 "github.com/envoyproxy/go-control-plane/pkg/cache/v3"
 
+	"github.com/saitejasrivillibhutturu/distributed-service-mesh-control-plane/internal/metrics"
 	"github.com/saitejasrivillibhutturu/distributed-service-mesh-control-plane/internal/registry"
 	"github.com/saitejasrivillibhutturu/distributed-service-mesh-control-plane/internal/routing"
 	"github.com/saitejasrivillibhutturu/distributed-service-mesh-control-plane/internal/xds"
@@ -37,27 +39,40 @@ type Reconciler struct {
 	routes     *routing.Store
 	cache      cachev3.SnapshotCache
 	logger     *slog.Logger
+	metrics    *metrics.Registry
 	staleAfter time.Duration
 	version    atomic.Uint64
 
 	attempts atomic.Uint64
 	failures atomic.Uint64
+
+	mu           sync.RWMutex
+	lastSnapshot *cachev3.Snapshot
 }
 
 // New constructs a Reconciler. staleAfter bounds how long an instance may go
 // without a heartbeat before SweepStale marks it unhealthy; zero disables
-// sweeping. Call Run to start the periodic loop, and Reconcile to trigger an
-// immediate rebuild (e.g. after a registry mutation).
-func New(reg registry.Registry, routes *routing.Store, cache cachev3.SnapshotCache, logger *slog.Logger, staleAfter time.Duration) *Reconciler {
-	return &Reconciler{reg: reg, routes: routes, cache: cache, logger: logger, staleAfter: staleAfter}
+// sweeping. metricsReg may be nil to disable metrics recording. Call Run to
+// start the periodic loop, and Reconcile to trigger an immediate rebuild
+// (e.g. after a registry mutation).
+func New(reg registry.Registry, routes *routing.Store, cache cachev3.SnapshotCache, logger *slog.Logger, staleAfter time.Duration, metricsReg *metrics.Registry) *Reconciler {
+	return &Reconciler{reg: reg, routes: routes, cache: cache, logger: logger, staleAfter: staleAfter, metrics: metricsReg}
 }
 
 // Reconcile sweeps stale instances, rebuilds the snapshot from current
 // registry state, and publishes it if valid.
 func (r *Reconciler) Reconcile(ctx context.Context) error {
+	start := time.Now()
 	r.attempts.Add(1)
+	if r.metrics != nil {
+		r.metrics.ReconciliationAttempts.Inc()
+		defer func() { r.metrics.ReconciliationDuration.Observe(time.Since(start).Seconds()) }()
+	}
 
 	if transitioned := r.reg.SweepStale(r.staleAfter); len(transitioned) > 0 {
+		if r.metrics != nil {
+			r.metrics.StaleInstancesTransitioned.Add(float64(len(transitioned)))
+		}
 		for _, inst := range transitioned {
 			r.logger.Warn("instance marked unhealthy: missed heartbeat deadline",
 				"service", inst.ServiceName, "instance", inst.InstanceID, "last_heartbeat", inst.LastHeartbeat)
@@ -68,18 +83,57 @@ func (r *Reconciler) Reconcile(ctx context.Context) error {
 	snap, err := xds.BuildSnapshot(r.reg, r.routes, fmt.Sprintf("v%d", version))
 	if err != nil {
 		r.failures.Add(1)
+		if r.metrics != nil {
+			r.metrics.ReconciliationFailures.Inc()
+			r.metrics.XDSUpdateFailuresTotal.Inc()
+		}
 		r.logger.Error("snapshot build failed, keeping previous snapshot", "error", err)
 		return err
 	}
 
 	if err := r.cache.SetSnapshot(ctx, NodeID, snap); err != nil {
 		r.failures.Add(1)
+		if r.metrics != nil {
+			r.metrics.ReconciliationFailures.Inc()
+			r.metrics.XDSUpdateFailuresTotal.Inc()
+		}
 		r.logger.Error("snapshot publish failed", "error", err)
 		return err
 	}
 
+	r.mu.Lock()
+	r.lastSnapshot = snap
+	r.mu.Unlock()
+
+	if r.metrics != nil {
+		r.metrics.XDSUpdatesTotal.Inc()
+		r.metrics.ConfigVersion.Set(float64(version))
+		r.metrics.ServicesTotal.Set(float64(len(r.reg.ListServices(xds.Namespace))))
+		r.metrics.EndpointsTotal.Set(float64(countEndpoints(r.reg)))
+	}
+
 	r.logger.Info("published xds snapshot", "version", version)
 	return nil
+}
+
+func countEndpoints(reg registry.Registry) int {
+	total := 0
+	for _, svc := range reg.ListServices(xds.Namespace) {
+		instances, err := reg.GetService(xds.Namespace, svc)
+		if err != nil {
+			continue
+		}
+		total += len(instances)
+	}
+	return total
+}
+
+// LastSnapshot returns the most recently published snapshot, or nil if none
+// has been published yet. Used by debug/observability endpoints.
+func (r *Reconciler) LastSnapshot() *cachev3.Snapshot {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	return r.lastSnapshot
 }
 
 // Run reconciles once immediately, then every interval until ctx is done.
