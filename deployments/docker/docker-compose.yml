@@ -1,0 +1,37 @@
+services:
+  backend-a:
+    build:
+      context: ../..
+      dockerfile: Dockerfile
+    command: ["-addr=:9000", "-name=backend-a"]
+    networks: [mesh]
+
+  backend-b:
+    build:
+      context: ../..
+      dockerfile: Dockerfile
+    command: ["-addr=:9000", "-name=backend-b"]
+    networks: [mesh]
+
+  envoy-a:
+    image: envoyproxy/envoy:v1.31-latest
+    volumes:
+      - ../envoy/envoy-a.yaml:/etc/envoy/envoy.yaml:ro
+    ports:
+      - "10000:10000"
+      - "9901:9901"
+    depends_on: [backend-a]
+    networks: [mesh]
+
+  envoy-b:
+    image: envoyproxy/envoy:v1.31-latest
+    volumes:
+      - ../envoy/envoy-b.yaml:/etc/envoy/envoy.yaml:ro
+    ports:
+      - "10001:10001"
+    depends_on: [backend-b]
+    networks: [mesh]
+
+networks:
+  mesh:
+    driver: bridge

@@ -31,6 +31,45 @@ All registry endpoints accept an optional `?namespace=` query param
 (`GET`/`DELETE`) or `namespace` body field (`POST`), defaulting to
 `"default"`.
 
+## Envoy data plane (v0.3.0)
+
+v0.3.0 introduces the actual data plane: Envoy runs as a sidecar in front of
+each backend, using **static** config (no xDS yet — that's v0.4.0). This
+release proves the architecture works before the control plane starts
+generating configuration dynamically.
+
+```
+client -> envoy-a (:10000) -> backend-a (:9000)
+client -> envoy-a (:10000, /via-b) -> envoy-b (:10001) -> backend-b (:9000)
+```
+
+Files:
+
+```
+Dockerfile                          multi-stage build for demo-service + control-plane binaries
+deployments/envoy/envoy-a.yaml      static listener/cluster config for envoy-a sidecar
+deployments/envoy/envoy-b.yaml      static listener/cluster config for envoy-b sidecar
+deployments/docker/docker-compose.yml   backend-a, backend-b, envoy-a, envoy-b on one bridge network
+scripts/envoy_smoke_test.sh         brings the stack up, runs every connectivity/failure
+                                     scenario below against real containers, tears it down
+```
+
+Verified scenarios (via `scripts/envoy_smoke_test.sh`, exercised against real
+Docker containers, not mocked):
+
+- Client -> Envoy -> backend returns the backend's response.
+- Client -> Envoy A -> Envoy B -> backend B (`/via-b` route) returns
+  backend B's response, proving Envoy-to-Envoy sidecar chaining.
+- Backend containers implement no routing logic themselves — Envoy owns
+  cluster selection, health checking (active HTTP health checks against
+  `/healthz`), and failure isolation.
+- Killing `backend-a` causes Envoy to return `503` and mark the endpoint
+  unhealthy (visible via `/clusters` admin endpoint); restarting the
+  container brings the endpoint back to `200` once the health check passes.
+- Malformed Envoy config (unknown field) is rejected by `envoy --mode
+  validate` with a non-zero exit and a descriptive protobuf error — Envoy
+  never silently starts with bad config.
+
 ## Components
 
 ```

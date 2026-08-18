@@ -8,8 +8,9 @@ discovery, and Kubernetes deployment. Built to close the specialized gap
 between general distributed-systems experience and service-mesh/container-
 networking infrastructure work.
 
-**Status: v0.2.0 — control-plane foundation + service registry/discovery.**
-Envoy integration and xDS land in subsequent releases (see `CHANGELOG.md`).
+**Status: v0.3.0 — control-plane foundation + service registry/discovery +
+Envoy sidecar integration (static config).** xDS lands in v0.4.0 (see
+`CHANGELOG.md`).
 
 This is an independent service-mesh implementation inspired by production
 service-discovery and traffic-management architectures. It is not an
@@ -40,6 +41,18 @@ curl localhost:8080/v1/services/backend-a
 curl -X POST localhost:8080/v1/services/backend-a/instances/i1/heartbeat
 curl "localhost:8080/v1/services/backend-a/instances?healthy=true"
 curl -X DELETE localhost:8080/v1/services/backend-a/instances/i1
+```
+
+**v0.3.0**
+- Envoy sidecar in front of each backend, static config (no xDS yet)
+- Demonstrates client -> Envoy -> backend, and Envoy A -> Envoy B -> backend B
+- Health-aware failure isolation and recovery without backend routing logic
+
+```
+docker compose -f deployments/docker/docker-compose.yml up --build
+curl localhost:10000/echo    # client -> envoy-a -> backend-a
+curl localhost:10000/via-b   # client -> envoy-a -> envoy-b -> backend-b
+./scripts/envoy_smoke_test.sh   # full connectivity + failure/recovery test
 ```
 
 See `docs/architecture/system.md` for the design and `docs/adr/` for decision

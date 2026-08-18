@@ -1,5 +1,25 @@
 # Changelog
 
+## v0.3.0 — Envoy integration
+
+- `Dockerfile`: multi-stage build producing `demo-service` and
+  `control-plane` binaries on distroless base.
+- `deployments/envoy/envoy-{a,b}.yaml`: static Envoy config — listener,
+  route, cluster, active HTTP health check per backend.
+- `deployments/docker/docker-compose.yml`: backend-a, backend-b, envoy-a,
+  envoy-b wired on one bridge network.
+- `scripts/envoy_smoke_test.sh`: end-to-end smoke test against real Docker
+  containers (no mocks) — brings the stack up, verifies:
+  - client -> Envoy -> backend
+  - client -> Envoy A -> Envoy B -> backend B (sidecar chaining)
+  - backend failure -> Envoy returns 503, marks endpoint unhealthy
+  - backend recovery -> Envoy resumes routing traffic, 200
+  - malformed Envoy config is rejected by `envoy --mode validate`
+  then tears the stack down. All five scenarios pass against live
+  containers as of this release.
+- Backend containers (`cmd/demo-service`) implement zero routing logic —
+  Envoy owns cluster selection and health-aware failure isolation.
+
 ## v0.2.0 — Service registry and discovery
 
 - In-memory, thread-safe service registry (`internal/registry`) behind a

@@ -1,0 +1,61 @@
+admin:
+  address:
+    socket_address: { address: 0.0.0.0, port_value: 9901 }
+
+static_resources:
+  listeners:
+    - name: listener_a
+      address:
+        socket_address: { address: 0.0.0.0, port_value: 10000 }
+      filter_chains:
+        - filters:
+            - name: envoy.filters.network.http_connection_manager
+              typed_config:
+                "@type": type.googleapis.com/envoy.extensions.filters.network.http_connection_manager.v3.HttpConnectionManager
+                stat_prefix: ingress_a
+                route_config:
+                  name: local_route
+                  virtual_hosts:
+                    - name: backend_a
+                      domains: ["*"]
+                      routes:
+                        - match: { prefix: "/via-b" }
+                          route: { cluster: envoy_b_sidecar, prefix_rewrite: "/echo" }
+                        - match: { prefix: "/" }
+                          route: { cluster: backend_a }
+                http_filters:
+                  - name: envoy.filters.http.router
+                    typed_config:
+                      "@type": type.googleapis.com/envoy.extensions.filters.http.router.v3.Router
+
+  clusters:
+    - name: backend_a
+      connect_timeout: 1s
+      type: STRICT_DNS
+      lb_policy: ROUND_ROBIN
+      load_assignment:
+        cluster_name: backend_a
+        endpoints:
+          - lb_endpoints:
+              - endpoint:
+                  address:
+                    socket_address: { address: backend-a, port_value: 9000 }
+      health_checks:
+        - timeout: 1s
+          interval: 2s
+          unhealthy_threshold: 3
+          healthy_threshold: 1
+          http_health_check:
+            path: "/healthz"
+
+    - name: envoy_b_sidecar
+      connect_timeout: 1s
+      type: STRICT_DNS
+      lb_policy: ROUND_ROBIN
+      load_assignment:
+        cluster_name: envoy_b_sidecar
+        endpoints:
+          - lb_endpoints:
+              - endpoint:
+                  address:
+                    socket_address: { address: envoy-b, port_value: 10001 }
