@@ -9,12 +9,14 @@ import (
 
 	"github.com/saitejasrivillibhutturu/distributed-service-mesh-control-plane/internal/logging"
 	"github.com/saitejasrivillibhutturu/distributed-service-mesh-control-plane/internal/registry"
+	"github.com/saitejasrivillibhutturu/distributed-service-mesh-control-plane/internal/routing"
 )
 
 func newTestReconciler() (*Reconciler, *registry.InMemory, cachev3.SnapshotCache) {
 	reg := registry.New()
+	routes := routing.NewStore()
 	cache := cachev3.NewSnapshotCache(true, cachev3.IDHash{}, nil)
-	r := New(reg, cache, logging.New("error"))
+	r := New(reg, routes, cache, logging.New("error"))
 	return r, reg, cache
 }
 

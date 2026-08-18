@@ -1,5 +1,5 @@
 // Package xds builds versioned Envoy xDS snapshots (CDS/EDS/LDS/RDS) from
-// service registry state and serves them over gRPC.
+// service registry and traffic-management state, and serves them over gRPC.
 package xds
 
 import (
@@ -19,8 +19,10 @@ import (
 	resourcev3 "github.com/envoyproxy/go-control-plane/pkg/resource/v3"
 	"google.golang.org/protobuf/types/known/anypb"
 	"google.golang.org/protobuf/types/known/durationpb"
+	"google.golang.org/protobuf/types/known/wrapperspb"
 
 	"github.com/saitejasrivillibhutturu/distributed-service-mesh-control-plane/internal/registry"
+	"github.com/saitejasrivillibhutturu/distributed-service-mesh-control-plane/internal/routing"
 )
 
 // basePort is the first listener port allocated to services, in sorted-name
@@ -35,26 +37,52 @@ const staleAfter = 15 * time.Second
 // release. Multi-namespace snapshot generation is future work.
 const Namespace = "default"
 
-// BuildSnapshot reads every service in Namespace from reg and produces a
-// versioned CDS/EDS/LDS/RDS snapshot. version must be unique and increasing
-// across calls (the caller owns versioning) so Envoy can detect staleness.
-func BuildSnapshot(reg registry.Registry, version string) (*cachev3.Snapshot, error) {
+// noVersionSplit is the fallback used when no routing.Spec is configured for
+// a service: every healthy instance, regardless of Version, backs a single
+// cluster named after the service itself.
+var noVersionSplit = []routing.VersionWeight{{Version: "", Weight: 100}}
+
+// BuildSnapshot reads every service in Namespace from reg, applies any
+// configured routing.Spec from routes, and produces a versioned
+// CDS/EDS/LDS/RDS snapshot. version must be unique and increasing across
+// calls (the caller owns versioning) so Envoy can detect staleness.
+func BuildSnapshot(reg registry.Registry, routes *routing.Store, version string) (*cachev3.Snapshot, error) {
 	services := reg.ListServices(Namespace)
 	sort.Strings(services)
 
-	var clusters, endpoints, listeners, routes []types.Resource
+	var clusters, endpoints, listeners, routeConfigs []types.Resource
 
 	for i, svc := range services {
 		port := uint32(basePort + i)
 
-		cluster := buildCluster(svc)
-		clusters = append(clusters, cluster)
+		spec, hasSpec := routing.Spec{}, false
+		if routes != nil {
+			spec, hasSpec = routes.Get(svc)
+		}
+		splits := noVersionSplit
+		if hasSpec {
+			splits = spec.Splits
+		}
 
-		instances := reg.HealthyInstances(Namespace, svc, staleAfter)
-		endpoints = append(endpoints, buildClusterLoadAssignment(svc, instances))
+		weightedClusters := make([]*routev3.WeightedCluster_ClusterWeight, 0, len(splits))
+		for _, split := range splits {
+			clusterName := clusterName(svc, split.Version)
+			clusters = append(clusters, buildCluster(clusterName, spec.CircuitBreaker))
+
+			instances := reg.HealthyInstances(Namespace, svc, staleAfter)
+			if split.Version != "" {
+				instances = filterByVersion(instances, split.Version)
+			}
+			endpoints = append(endpoints, buildClusterLoadAssignment(clusterName, instances))
+
+			weightedClusters = append(weightedClusters, &routev3.WeightedCluster_ClusterWeight{
+				Name:   clusterName,
+				Weight: wrapperspb.UInt32(split.Weight),
+			})
+		}
 
 		routeConfigName := svc + "-route"
-		routes = append(routes, buildRouteConfiguration(routeConfigName, svc))
+		routeConfigs = append(routeConfigs, buildRouteConfiguration(routeConfigName, svc, weightedClusters, spec))
 
 		listener, err := buildListener(svc, port, routeConfigName)
 		if err != nil {
@@ -67,7 +95,7 @@ func BuildSnapshot(reg registry.Registry, version string) (*cachev3.Snapshot, er
 		resourcev3.ClusterType:  clusters,
 		resourcev3.EndpointType: endpoints,
 		resourcev3.ListenerType: listeners,
-		resourcev3.RouteType:    routes,
+		resourcev3.RouteType:    routeConfigs,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("construct snapshot: %w", err)
@@ -78,9 +106,26 @@ func BuildSnapshot(reg registry.Registry, version string) (*cachev3.Snapshot, er
 	return snap, nil
 }
 
-func buildCluster(serviceName string) *clusterv3.Cluster {
-	return &clusterv3.Cluster{
-		Name:                 serviceName,
+func clusterName(serviceName, version string) string {
+	if version == "" {
+		return serviceName
+	}
+	return serviceName + "::" + version
+}
+
+func filterByVersion(instances []registry.Instance, version string) []registry.Instance {
+	out := instances[:0:0]
+	for _, inst := range instances {
+		if inst.Version == version {
+			out = append(out, inst)
+		}
+	}
+	return out
+}
+
+func buildCluster(name string, cb routing.CircuitBreaker) *clusterv3.Cluster {
+	c := &clusterv3.Cluster{
+		Name:                 name,
 		ConnectTimeout:       durationpb.New(2 * time.Second),
 		ClusterDiscoveryType: &clusterv3.Cluster_Type{Type: clusterv3.Cluster_EDS},
 		EdsClusterConfig: &clusterv3.Cluster_EdsClusterConfig{
@@ -91,9 +136,28 @@ func buildCluster(serviceName string) *clusterv3.Cluster {
 		},
 		LbPolicy: clusterv3.Cluster_ROUND_ROBIN,
 	}
+	if cb != (routing.CircuitBreaker{}) {
+		threshold := &clusterv3.CircuitBreakers_Thresholds{}
+		if cb.MaxConnections > 0 {
+			threshold.MaxConnections = wrapperspb.UInt32(cb.MaxConnections)
+		}
+		if cb.MaxPendingRequests > 0 {
+			threshold.MaxPendingRequests = wrapperspb.UInt32(cb.MaxPendingRequests)
+		}
+		if cb.MaxRequests > 0 {
+			threshold.MaxRequests = wrapperspb.UInt32(cb.MaxRequests)
+		}
+		if cb.MaxRetries > 0 {
+			threshold.MaxRetries = wrapperspb.UInt32(cb.MaxRetries)
+		}
+		c.CircuitBreakers = &clusterv3.CircuitBreakers{
+			Thresholds: []*clusterv3.CircuitBreakers_Thresholds{threshold},
+		}
+	}
+	return c
 }
 
-func buildClusterLoadAssignment(serviceName string, instances []registry.Instance) *endpointv3.ClusterLoadAssignment {
+func buildClusterLoadAssignment(clusterName string, instances []registry.Instance) *endpointv3.ClusterLoadAssignment {
 	lbEndpoints := make([]*endpointv3.LbEndpoint, 0, len(instances))
 	for _, inst := range instances {
 		lbEndpoints = append(lbEndpoints, &endpointv3.LbEndpoint{
@@ -114,30 +178,43 @@ func buildClusterLoadAssignment(serviceName string, instances []registry.Instanc
 		})
 	}
 	return &endpointv3.ClusterLoadAssignment{
-		ClusterName: serviceName,
+		ClusterName: clusterName,
 		Endpoints: []*endpointv3.LocalityLbEndpoints{
 			{LbEndpoints: lbEndpoints},
 		},
 	}
 }
 
-func buildRouteConfiguration(routeConfigName, clusterName string) *routev3.RouteConfiguration {
+func buildRouteConfiguration(routeConfigName, virtualHostName string, weightedClusters []*routev3.WeightedCluster_ClusterWeight, spec routing.Spec) *routev3.RouteConfiguration {
+	action := &routev3.RouteAction{}
+	if len(weightedClusters) == 1 && weightedClusters[0].Weight.GetValue() == 100 {
+		action.ClusterSpecifier = &routev3.RouteAction_Cluster{Cluster: weightedClusters[0].Name}
+	} else {
+		action.ClusterSpecifier = &routev3.RouteAction_WeightedClusters{
+			WeightedClusters: &routev3.WeightedCluster{Clusters: weightedClusters},
+		}
+	}
+	if spec.TimeoutMs > 0 {
+		action.Timeout = durationpb.New(time.Duration(spec.TimeoutMs) * time.Millisecond)
+	}
+	if spec.RetryOn != "" {
+		action.RetryPolicy = &routev3.RetryPolicy{
+			RetryOn:    spec.RetryOn,
+			NumRetries: wrapperspb.UInt32(spec.NumRetries),
+		}
+	}
 	return &routev3.RouteConfiguration{
 		Name: routeConfigName,
 		VirtualHosts: []*routev3.VirtualHost{
 			{
-				Name:    clusterName,
+				Name:    virtualHostName,
 				Domains: []string{"*"},
 				Routes: []*routev3.Route{
 					{
 						Match: &routev3.RouteMatch{
 							PathSpecifier: &routev3.RouteMatch_Prefix{Prefix: "/"},
 						},
-						Action: &routev3.Route_Route{
-							Route: &routev3.RouteAction{
-								ClusterSpecifier: &routev3.RouteAction_Cluster{Cluster: clusterName},
-							},
-						},
+						Action: &routev3.Route_Route{Route: action},
 					},
 				},
 			},

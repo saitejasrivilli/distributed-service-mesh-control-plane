@@ -28,7 +28,7 @@ func regWithServices(t *testing.T, services ...string) *registry.InMemory {
 
 func TestBuildSnapshotProducesAllFourResourceTypes(t *testing.T) {
 	r := regWithServices(t, "backend-a", "backend-b")
-	snap, err := BuildSnapshot(r, "v1")
+	snap, err := BuildSnapshot(r, nil, "v1")
 	if err != nil {
 		t.Fatalf("BuildSnapshot: %v", err)
 	}
@@ -48,7 +48,7 @@ func TestBuildSnapshotProducesAllFourResourceTypes(t *testing.T) {
 
 func TestBuildSnapshotIsConsistent(t *testing.T) {
 	r := regWithServices(t, "backend-a")
-	snap, err := BuildSnapshot(r, "v1")
+	snap, err := BuildSnapshot(r, nil, "v1")
 	if err != nil {
 		t.Fatalf("BuildSnapshot: %v", err)
 	}
@@ -59,11 +59,11 @@ func TestBuildSnapshotIsConsistent(t *testing.T) {
 
 func TestBuildSnapshotVersioning(t *testing.T) {
 	r := regWithServices(t, "backend-a")
-	snap1, err := BuildSnapshot(r, "v1")
+	snap1, err := BuildSnapshot(r, nil, "v1")
 	if err != nil {
 		t.Fatalf("BuildSnapshot v1: %v", err)
 	}
-	snap2, err := BuildSnapshot(r, "v2")
+	snap2, err := BuildSnapshot(r, nil, "v2")
 	if err != nil {
 		t.Fatalf("BuildSnapshot v2: %v", err)
 	}
@@ -77,7 +77,7 @@ func TestBuildSnapshotVersioning(t *testing.T) {
 
 func TestBuildSnapshotDeterministicPortAssignment(t *testing.T) {
 	r := regWithServices(t, "backend-b", "backend-a")
-	snap, err := BuildSnapshot(r, "v1")
+	snap, err := BuildSnapshot(r, nil, "v1")
 	if err != nil {
 		t.Fatalf("BuildSnapshot: %v", err)
 	}
@@ -97,7 +97,7 @@ func TestBuildSnapshotOnlyHealthyEndpointsInEDS(t *testing.T) {
 	r := registry.New()
 	_ = r.Register(registry.Instance{ServiceName: "backend-a", Namespace: Namespace, InstanceID: "i1", Address: "10.0.0.1", Port: 9000})
 
-	snap, err := BuildSnapshot(r, "v1")
+	snap, err := BuildSnapshot(r, nil, "v1")
 	if err != nil {
 		t.Fatalf("BuildSnapshot: %v", err)
 	}
@@ -109,7 +109,7 @@ func TestBuildSnapshotOnlyHealthyEndpointsInEDS(t *testing.T) {
 
 func TestBuildSnapshotEmptyRegistryProducesEmptySnapshot(t *testing.T) {
 	r := registry.New()
-	snap, err := BuildSnapshot(r, "v1")
+	snap, err := BuildSnapshot(r, nil, "v1")
 	if err != nil {
 		t.Fatalf("BuildSnapshot: %v", err)
 	}
@@ -120,7 +120,7 @@ func TestBuildSnapshotEmptyRegistryProducesEmptySnapshot(t *testing.T) {
 
 func TestClusterUsesEDSDiscoveryType(t *testing.T) {
 	r := regWithServices(t, "backend-a")
-	snap, err := BuildSnapshot(r, "v1")
+	snap, err := BuildSnapshot(r, nil, "v1")
 	if err != nil {
 		t.Fatalf("BuildSnapshot: %v", err)
 	}
@@ -132,7 +132,7 @@ func TestClusterUsesEDSDiscoveryType(t *testing.T) {
 
 func TestRouteConfigurationRoutesToMatchingCluster(t *testing.T) {
 	r := regWithServices(t, "backend-a")
-	snap, err := BuildSnapshot(r, "v1")
+	snap, err := BuildSnapshot(r, nil, "v1")
 	if err != nil {
 		t.Fatalf("BuildSnapshot: %v", err)
 	}

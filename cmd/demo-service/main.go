@@ -14,6 +14,7 @@ import (
 func main() {
 	addr := flag.String("addr", ":9000", "address to listen on")
 	name := flag.String("name", envOr("DEMO_SERVICE_NAME", "demo-service"), "service instance name")
+	version := flag.String("version", envOr("DEMO_SERVICE_VERSION", ""), "service instance version, for canary/traffic-split demos")
 	flag.Parse()
 
 	mux := http.NewServeMux()
@@ -22,7 +23,7 @@ func main() {
 	})
 	mux.HandleFunc("GET /echo", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(map[string]string{"service": *name})
+		_ = json.NewEncoder(w).Encode(map[string]string{"service": *name, "version": *version})
 	})
 
 	log.Printf("demo-service %q listening on %s", *name, *addr)

@@ -17,6 +17,7 @@ import (
 	"github.com/saitejasrivillibhutturu/distributed-service-mesh-control-plane/internal/metrics"
 	"github.com/saitejasrivillibhutturu/distributed-service-mesh-control-plane/internal/reconciliation"
 	"github.com/saitejasrivillibhutturu/distributed-service-mesh-control-plane/internal/registry"
+	"github.com/saitejasrivillibhutturu/distributed-service-mesh-control-plane/internal/routing"
 	"github.com/saitejasrivillibhutturu/distributed-service-mesh-control-plane/internal/xds"
 )
 
@@ -36,11 +37,12 @@ func New(cfg config.Config) *ControlPlane {
 	metricsReg := metrics.New()
 	readiness := &api.AtomicReadiness{}
 	svcRegistry := registry.New()
-	server := api.New(cfg, logger, metricsReg, readiness, svcRegistry)
+	routeStore := routing.NewStore()
+	server := api.New(cfg, logger, metricsReg, readiness, svcRegistry, routeStore)
 
 	snapshotCache := cachev3.NewSnapshotCache(true, cachev3.IDHash{}, nil)
 	xdsServer := xds.NewServer(context.Background(), snapshotCache, nil, logger)
-	reconciler := reconciliation.New(svcRegistry, snapshotCache, logger)
+	reconciler := reconciliation.New(svcRegistry, routeStore, snapshotCache, logger)
 
 	return &ControlPlane{
 		cfg:        cfg,

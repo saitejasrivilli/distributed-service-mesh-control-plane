@@ -8,9 +8,10 @@ discovery, and Kubernetes deployment. Built to close the specialized gap
 between general distributed-systems experience and service-mesh/container-
 networking infrastructure work.
 
-**Status: v0.4.0 — control-plane foundation + service registry/discovery +
-Envoy integration + dynamic xDS (CDS/EDS/LDS/RDS) control plane.** Traffic
-management lands in v0.5.0 (see `CHANGELOG.md`).
+**Status: v0.5.0 — control-plane foundation + service registry/discovery +
+Envoy integration + dynamic xDS + service-to-service traffic management
+(weighted/canary routing, retries, timeouts, circuit breaking).**
+Health-aware reconciliation lands in v0.6.0 (see `CHANGELOG.md`).
 
 This is an independent service-mesh implementation inspired by production
 service-discovery and traffic-management architectures. It is not an
@@ -68,6 +69,21 @@ curl localhost:20000/echo   # Envoy now serving backend-a — no restart happene
 ./scripts/xds_smoke_test.sh   # full dynamic add/remove test
 ```
 
+**v0.5.0**
+- Weighted/canary routing across service versions, retries, timeouts,
+  circuit breaking — all dynamic, no Envoy restarts
+- Measured (not invented) numbers: 90/10 canary split measured 86.5%/13.5%
+  over 200 requests; live shift to 50/50 measured 46%/54% over the next 200
+  requests; 300-request latency benchmark: p50=2.01ms p95=2.81ms
+  p99=3.38ms, 0 errors (`test/benchmark/results/v0.5.0_latency.json`)
+
+```
+docker compose -f deployments/docker/docker-compose-traffic.yml up --build
+curl -X PUT localhost:8080/v1/routes/backend-a -d '{"splits":[{"version":"v1","weight":90},{"version":"v2","weight":10}]}'
+curl -X PUT localhost:8080/v1/routes/backend-a -d '{"splits":[{"version":"v1","weight":50},{"version":"v2","weight":50}]}'
+./scripts/traffic_smoke_test.sh   # measures real canary distribution at both splits
+```
+
 See `docs/architecture/system.md` for the design and `docs/adr/` for decision
 records.
 
@@ -95,6 +111,5 @@ golangci-lint run ./...
 
 ## Roadmap
 
-v0.5.0 traffic management · v0.6.0 reconciliation/health · v0.7.0
-Kubernetes · v0.8.0 observability · v0.9.0 scale/perf validation · v1.0.0
-production-quality release.
+v0.6.0 reconciliation/health · v0.7.0 Kubernetes · v0.8.0 observability ·
+v0.9.0 scale/perf validation · v1.0.0 production-quality release.

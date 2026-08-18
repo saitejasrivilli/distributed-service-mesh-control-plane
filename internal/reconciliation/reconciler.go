@@ -12,6 +12,7 @@ import (
 	cachev3 "github.com/envoyproxy/go-control-plane/pkg/cache/v3"
 
 	"github.com/saitejasrivillibhutturu/distributed-service-mesh-control-plane/internal/registry"
+	"github.com/saitejasrivillibhutturu/distributed-service-mesh-control-plane/internal/routing"
 	"github.com/saitejasrivillibhutturu/distributed-service-mesh-control-plane/internal/xds"
 )
 
@@ -24,6 +25,7 @@ const NodeID = "demo-envoy"
 // when nothing changed to avoid needless Envoy churn.
 type Reconciler struct {
 	reg     registry.Registry
+	routes  *routing.Store
 	cache   cachev3.SnapshotCache
 	logger  *slog.Logger
 	version atomic.Uint64
@@ -34,8 +36,8 @@ type Reconciler struct {
 
 // New constructs a Reconciler. Call Run to start the periodic loop, and
 // Reconcile to trigger an immediate rebuild (e.g. after a registry mutation).
-func New(reg registry.Registry, cache cachev3.SnapshotCache, logger *slog.Logger) *Reconciler {
-	return &Reconciler{reg: reg, cache: cache, logger: logger}
+func New(reg registry.Registry, routes *routing.Store, cache cachev3.SnapshotCache, logger *slog.Logger) *Reconciler {
+	return &Reconciler{reg: reg, routes: routes, cache: cache, logger: logger}
 }
 
 // Reconcile rebuilds the snapshot from current registry state and publishes
@@ -45,7 +47,7 @@ func (r *Reconciler) Reconcile(ctx context.Context) error {
 	r.attempts.Add(1)
 	version := r.version.Add(1)
 
-	snap, err := xds.BuildSnapshot(r.reg, fmt.Sprintf("v%d", version))
+	snap, err := xds.BuildSnapshot(r.reg, r.routes, fmt.Sprintf("v%d", version))
 	if err != nil {
 		r.failures.Add(1)
 		r.logger.Error("snapshot build failed, keeping previous snapshot", "error", err)

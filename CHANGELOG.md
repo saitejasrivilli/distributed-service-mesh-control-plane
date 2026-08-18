@@ -1,5 +1,39 @@
 # Changelog
 
+## v0.5.0 — Service-to-service traffic management
+
+- `internal/routing`: `Spec` (version-weighted splits, retry policy,
+  timeout, circuit breaker) with `Validate()` (weights must sum to 100,
+  no duplicate versions, `retry_on` requires `num_retries > 0`) and a
+  thread-safe `Store` that only ever holds validated specs.
+- `internal/api`: `PUT/GET/DELETE /v1/routes/{service}` management
+  endpoints; invalid specs rejected with 400 before ever reaching the
+  reconciler.
+- `internal/xds`: `BuildSnapshot` extended to consume `routing.Store` —
+  weighted `RouteAction_WeightedClusters` routing across per-version EDS
+  clusters, retry policy and timeout on the route, circuit breaker
+  thresholds on the cluster. No configured route falls back to the
+  pre-v0.5.0 single-cluster behavior (fully backward compatible with
+  v0.2.0-v0.4.0 tests).
+- `cmd/demo-service`: `-version` flag so canary/traffic-split demos can
+  distinguish which version instance answered a request.
+- `deployments/docker/docker-compose-traffic.yml` +
+  `scripts/traffic_smoke_test.sh`: live proof, against real Docker
+  containers, that a 90/10 canary split measured 173/27 (86.5%/13.5%) over
+  200 real requests, and that shifting to 50/50 — with **zero Envoy
+  restart** — measured 92/108 (46%/54%) over the next 200 requests.
+- `test/benchmark/results/v0.5.0_latency.json`: measured (not invented)
+  latency — 300 sequential requests, 0 errors, p50=2.01ms, p95=2.81ms,
+  p99=3.38ms.
+- Unit tests: weight-sum/duplicate-version/retry validation (11 tests in
+  `internal/routing`), weighted-cluster generation, per-version EDS
+  filtering, canary weight shift reflected in snapshot, retry policy,
+  timeout, circuit breaker, single-cluster fallback (9 tests in
+  `internal/xds`), plus HTTP-layer route endpoint tests. All pass under
+  `-race`; a real bug (empty-`Version` splits incorrectly rejected by
+  `Validate`, which made the single-cluster fallback unexpressable) was
+  caught by these tests and fixed before this release.
+
 ## v0.4.0 — xDS control plane
 
 - `internal/xds`: pure `BuildSnapshot(registry, version)` generating

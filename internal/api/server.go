@@ -17,6 +17,7 @@ import (
 	"github.com/saitejasrivillibhutturu/distributed-service-mesh-control-plane/internal/logging"
 	"github.com/saitejasrivillibhutturu/distributed-service-mesh-control-plane/internal/metrics"
 	"github.com/saitejasrivillibhutturu/distributed-service-mesh-control-plane/internal/registry"
+	"github.com/saitejasrivillibhutturu/distributed-service-mesh-control-plane/internal/routing"
 )
 
 // ReadinessChecker reports whether the control plane is ready to serve traffic.
@@ -42,13 +43,14 @@ type Server struct {
 	logger     *slog.Logger
 	readiness  ReadinessChecker
 	registry   registry.Registry
+	routes     *routing.Store
 }
 
-// New constructs a Server wired with health, readiness, metrics, and service
-// registry management endpoints.
-func New(cfg config.Config, logger *slog.Logger, metricsReg *metrics.Registry, readiness ReadinessChecker, reg registry.Registry) *Server {
+// New constructs a Server wired with health, readiness, metrics, service
+// registry, and traffic-management management endpoints.
+func New(cfg config.Config, logger *slog.Logger, metricsReg *metrics.Registry, readiness ReadinessChecker, reg registry.Registry, routes *routing.Store) *Server {
 	mux := http.NewServeMux()
-	s := &Server{logger: logger, readiness: readiness, registry: reg}
+	s := &Server{logger: logger, readiness: readiness, registry: reg, routes: routes}
 
 	mux.HandleFunc("GET /healthz", s.handleHealthz)
 	mux.HandleFunc("GET /readyz", s.handleReadyz)
@@ -59,6 +61,10 @@ func New(cfg config.Config, logger *slog.Logger, metricsReg *metrics.Registry, r
 	mux.HandleFunc("POST /v1/services/{name}/instances/{id}/heartbeat", s.handleHeartbeat)
 	mux.HandleFunc("GET /v1/services/{name}", s.handleGetService)
 	mux.HandleFunc("GET /v1/services/{name}/instances", s.handleListInstances)
+
+	mux.HandleFunc("PUT /v1/routes/{service}", s.handlePutRoute)
+	mux.HandleFunc("GET /v1/routes/{service}", s.handleGetRoute)
+	mux.HandleFunc("DELETE /v1/routes/{service}", s.handleDeleteRoute)
 
 	handler := withCorrelationID(withMetrics(mux, metricsReg))
 

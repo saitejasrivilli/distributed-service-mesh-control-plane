@@ -94,6 +94,23 @@ through it immediately (`cds: add 1 cluster(s)`, `lds: add/update
 listener`) with no process restart; deregistering the last instance of a
 service causes Envoy to remove the listener entirely.
 
+## Traffic management (v0.5.0)
+
+```
+internal/routing/route.go       Spec (splits/retry/timeout/circuit-breaker), validated Store
+internal/api/routing_handlers.go   PUT/GET/DELETE /v1/routes/{service}
+scripts/traffic_smoke_test.sh   measures ACTUAL canary traffic distribution, twice, at two splits
+test/benchmark/results/v0.5.0_latency.json   measured p50/p95/p99/error-rate, not invented
+```
+
+`xds.BuildSnapshot` now takes a `*routing.Store`. Per service, each
+configured version split becomes its own `service::version` EDS cluster;
+with no configured route it falls back to one cluster per service (pre-
+v0.5.0 behavior), so registry/xDS tests from earlier releases keep passing
+unmodified. See ADR-007 for the validation rules and the real measured
+canary-split numbers (90/10 measured as 86.5/13.5, then a live shift to
+50/50 measured as 46/54, zero Envoy restarts).
+
 ## Components
 
 ```

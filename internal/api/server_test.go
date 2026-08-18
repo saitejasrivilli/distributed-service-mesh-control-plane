@@ -12,6 +12,7 @@ import (
 	"github.com/saitejasrivillibhutturu/distributed-service-mesh-control-plane/internal/logging"
 	"github.com/saitejasrivillibhutturu/distributed-service-mesh-control-plane/internal/metrics"
 	"github.com/saitejasrivillibhutturu/distributed-service-mesh-control-plane/internal/registry"
+	"github.com/saitejasrivillibhutturu/distributed-service-mesh-control-plane/internal/routing"
 )
 
 func testServer(t *testing.T, addr string) (*Server, *AtomicReadiness) {
@@ -22,7 +23,8 @@ func testServer(t *testing.T, addr string) (*Server, *AtomicReadiness) {
 	readiness := &AtomicReadiness{}
 	logger := logging.New("error")
 	reg := registry.New()
-	return New(cfg, logger, metricsReg, readiness, reg), readiness
+	routes := routing.NewStore()
+	return New(cfg, logger, metricsReg, readiness, reg, routes), readiness
 }
 
 func TestHealthzAlwaysOK(t *testing.T) {
