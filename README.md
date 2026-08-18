@@ -1,5 +1,7 @@
 # Distributed Service Mesh Control Plane
 
+Repo: https://github.com/saitejasrivilli/distributed-service-mesh-control-plane
+
 An independent service-mesh control plane implementation: service registry,
 Envoy xDS (CDS/EDS/LDS/RDS), dynamic traffic management, health-aware
 discovery, and Kubernetes deployment. Built to close the specialized gap
@@ -29,6 +31,8 @@ records.
 ## Running locally
 
 ```
+git clone https://github.com/saitejasrivilli/distributed-service-mesh-control-plane.git
+cd distributed-service-mesh-control-plane
 go run ./cmd/control-plane
 curl localhost:8080/healthz
 curl localhost:8080/readyz
