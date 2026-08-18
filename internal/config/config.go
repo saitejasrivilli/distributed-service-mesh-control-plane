@@ -10,23 +10,27 @@ import (
 
 // Config holds all runtime configuration for the control-plane process.
 type Config struct {
-	HTTPAddr        string
-	ShutdownTimeout time.Duration
-	ReadTimeout     time.Duration
-	WriteTimeout    time.Duration
-	IdleTimeout     time.Duration
-	LogLevel        string
+	HTTPAddr          string
+	XDSAddr           string
+	ReconcileInterval time.Duration
+	ShutdownTimeout   time.Duration
+	ReadTimeout       time.Duration
+	WriteTimeout      time.Duration
+	IdleTimeout       time.Duration
+	LogLevel          string
 }
 
 // Default returns a Config populated with sane local-dev defaults.
 func Default() Config {
 	return Config{
-		HTTPAddr:        ":8080",
-		ShutdownTimeout: 10 * time.Second,
-		ReadTimeout:     5 * time.Second,
-		WriteTimeout:    10 * time.Second,
-		IdleTimeout:     60 * time.Second,
-		LogLevel:        "info",
+		HTTPAddr:          ":8080",
+		XDSAddr:           ":18000",
+		ReconcileInterval: 2 * time.Second,
+		ShutdownTimeout:   10 * time.Second,
+		ReadTimeout:       5 * time.Second,
+		WriteTimeout:      10 * time.Second,
+		IdleTimeout:       60 * time.Second,
+		LogLevel:          "info",
 	}
 }
 
@@ -40,6 +44,16 @@ func Load() (Config, error) {
 	}
 	if v := os.Getenv("CP_LOG_LEVEL"); v != "" {
 		cfg.LogLevel = v
+	}
+	if v := os.Getenv("CP_XDS_ADDR"); v != "" {
+		cfg.XDSAddr = v
+	}
+	if v := os.Getenv("CP_RECONCILE_INTERVAL"); v != "" {
+		d, err := time.ParseDuration(v)
+		if err != nil {
+			return Config{}, fmt.Errorf("parse CP_RECONCILE_INTERVAL: %w", err)
+		}
+		cfg.ReconcileInterval = d
 	}
 	if v := os.Getenv("CP_SHUTDOWN_TIMEOUT"); v != "" {
 		d, err := time.ParseDuration(v)
@@ -84,6 +98,15 @@ func (c Config) Validate() error {
 	}
 	if _, err := strconv.Atoi(portOf(c.HTTPAddr)); err != nil {
 		return fmt.Errorf("http addr %q must end in :<port>: %w", c.HTTPAddr, err)
+	}
+	if c.XDSAddr == "" {
+		return fmt.Errorf("xds addr must not be empty")
+	}
+	if _, err := strconv.Atoi(portOf(c.XDSAddr)); err != nil {
+		return fmt.Errorf("xds addr %q must end in :<port>: %w", c.XDSAddr, err)
+	}
+	if c.ReconcileInterval <= 0 {
+		return fmt.Errorf("reconcile interval must be positive, got %s", c.ReconcileInterval)
 	}
 	if c.ShutdownTimeout <= 0 {
 		return fmt.Errorf("shutdown timeout must be positive, got %s", c.ShutdownTimeout)

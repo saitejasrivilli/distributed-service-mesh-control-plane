@@ -8,9 +8,9 @@ discovery, and Kubernetes deployment. Built to close the specialized gap
 between general distributed-systems experience and service-mesh/container-
 networking infrastructure work.
 
-**Status: v0.3.0 — control-plane foundation + service registry/discovery +
-Envoy sidecar integration (static config).** xDS lands in v0.4.0 (see
-`CHANGELOG.md`).
+**Status: v0.4.0 — control-plane foundation + service registry/discovery +
+Envoy integration + dynamic xDS (CDS/EDS/LDS/RDS) control plane.** Traffic
+management lands in v0.5.0 (see `CHANGELOG.md`).
 
 This is an independent service-mesh implementation inspired by production
 service-discovery and traffic-management architectures. It is not an
@@ -55,6 +55,19 @@ curl localhost:10000/via-b   # client -> envoy-a -> envoy-b -> backend-b
 ./scripts/envoy_smoke_test.sh   # full connectivity + failure/recovery test
 ```
 
+**v0.4.0**
+- Control plane generates Envoy config dynamically over gRPC ADS
+  (CDS/EDS/LDS/RDS) — no static config, no Envoy restarts
+- Registering/deregistering a service via the management API propagates to
+  Envoy automatically
+
+```
+docker compose -f deployments/docker/docker-compose-xds.yml up --build
+curl -X POST localhost:8080/v1/services -d '{"service_name":"backend-a","instance_id":"i1","address":"<backend-a-ip>","port":9000}'
+curl localhost:20000/echo   # Envoy now serving backend-a — no restart happened
+./scripts/xds_smoke_test.sh   # full dynamic add/remove test
+```
+
 See `docs/architecture/system.md` for the design and `docs/adr/` for decision
 records.
 
@@ -82,7 +95,6 @@ golangci-lint run ./...
 
 ## Roadmap
 
-v0.2.0 service registry/discovery · v0.3.0 Envoy integration · v0.4.0 xDS
-control plane · v0.5.0 traffic management · v0.6.0 reconciliation · v0.7.0
+v0.5.0 traffic management · v0.6.0 reconciliation/health · v0.7.0
 Kubernetes · v0.8.0 observability · v0.9.0 scale/perf validation · v1.0.0
 production-quality release.

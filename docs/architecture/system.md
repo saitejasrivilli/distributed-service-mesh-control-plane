@@ -70,6 +70,30 @@ Docker containers, not mocked):
   validate` with a non-zero exit and a descriptive protobuf error — Envoy
   never silently starts with bad config.
 
+## xDS control plane (v0.4.0)
+
+```
+Service Registry -> Reconciler (periodic + on-demand) -> xds.BuildSnapshot
+  -> versioned cachev3.Snapshot -> SnapshotCache -> gRPC ADS server -> Envoy
+```
+
+```
+internal/xds/snapshot.go        pure function: registry state -> CDS/EDS/LDS/RDS resources
+internal/xds/server.go          gRPC server exposing ADS (+ per-type CDS/EDS/LDS/RDS services)
+internal/reconciliation         periodic + on-demand reconcile loop, monotonic versioning
+deployments/envoy/envoy-dynamic.yaml   ADS bootstrap (no static clusters/listeners)
+deployments/docker/docker-compose-xds.yml   control-plane + envoy-dynamic + backend-a
+scripts/xds_smoke_test.sh       automated proof of dynamic add/remove, zero Envoy restarts
+```
+
+See ADR-004 for why go-control-plane's `SnapshotCache` was used over
+hand-rolling the protocol, and for the deterministic port-assignment and
+versioning rules. Verified live: registering a backend causes Envoy to
+receive a new cluster/endpoint/listener/route and start serving traffic
+through it immediately (`cds: add 1 cluster(s)`, `lds: add/update
+listener`) with no process restart; deregistering the last instance of a
+service causes Envoy to remove the listener entirely.
+
 ## Components
 
 ```
