@@ -21,9 +21,9 @@ jobs:
           go test ./...
           go test -race ./...
       - name: golangci-lint
-        uses: golangci/golangci-lint-action@v6
+        uses: golangci/golangci-lint-action@v9
         with:
-          version: latest
+          version: v2.12.2
       - name: build release image
         run: docker build -t mesh/control-plane:${{ github.ref_name }} .
       - name: create GitHub release

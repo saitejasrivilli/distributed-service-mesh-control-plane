@@ -12,8 +12,8 @@ cleanup() {
 }
 trap cleanup EXIT
 
-echo "==> starting stack (CP_STALE_AFTER=5s baked into docker-compose-xds.yml)"
-docker compose -f "$COMPOSE_FILE" up -d --build
+echo "==> starting stack (CP_STALE_AFTER=5s for this test only)"
+CP_STALE_AFTER=5s docker compose -f "$COMPOSE_FILE" up -d --build
 
 echo "==> waiting for control-plane HTTP API"
 for i in $(seq 1 30); do

@@ -34,10 +34,10 @@ echo "==> waiting for Envoy to pick up dynamic config (no restart)"
 resp=""
 for i in $(seq 1 20); do
   resp=$(curl -s -m 2 localhost:20000/echo || true)
-  [[ "$resp" == '{"service":"backend-a"}' ]] && break
+  [[ "$resp" == '{"service":"backend-a","version":""}' ]] && break
   sleep 1
 done
-[[ "$resp" == '{"service":"backend-a"}' ]] || { echo "FAIL: dynamic config never propagated, got $resp"; exit 1; }
+[[ "$resp" == '{"service":"backend-a","version":""}' ]] || { echo "FAIL: dynamic config never propagated, got $resp"; exit 1; }
 echo "OK: $resp (via dynamically created listener/cluster/route)"
 
 echo "==> deregistering backend-a"

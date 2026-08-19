@@ -25,12 +25,12 @@ done
 
 echo "==> test: client -> envoy-a -> backend-a"
 resp=$(curl -sf localhost:10000/echo)
-[[ "$resp" == '{"service":"backend-a"}' ]] || { echo "FAIL: got $resp"; exit 1; }
+[[ "$resp" == '{"service":"backend-a","version":""}' ]] || { echo "FAIL: got $resp"; exit 1; }
 echo "OK: $resp"
 
 echo "==> test: client -> envoy-a -> envoy-b -> backend-b"
 resp=$(curl -sf localhost:10000/via-b)
-[[ "$resp" == '{"service":"backend-b"}' ]] || { echo "FAIL: got $resp"; exit 1; }
+[[ "$resp" == '{"service":"backend-b","version":""}' ]] || { echo "FAIL: got $resp"; exit 1; }
 echo "OK: $resp"
 
 echo "==> test: backend-a failure -> 503 via envoy-a"
