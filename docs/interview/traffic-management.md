@@ -20,14 +20,13 @@ breaker thresholds attach to each version's `Cluster`.
 
 ## Measured behavior (not simulated)
 
-A 90/10 configured split measured 86.5%/13.5% over 200 real HTTP requests
-through a live Envoy; shifting the same route to 50/50 — with zero Envoy
-restart — measured 46%/54% over the next 200 requests
-(`scripts/traffic_smoke_test.sh`, numbers also in
-`test/benchmark/results/v0.5.0_latency.json`... actually recorded under
-that release's own results file, `v0.5.0_latency.json`, for the latency
-half; the split percentages are printed by the script itself and are
-reproducible by re-running it).
+A 90/10 configured split measured 173/27 (86.5%/13.5%) over 200 real HTTP
+requests through a live Envoy; shifting the same route to 50/50 — with
+zero Envoy restart — measured 92/108 (46%/54%) over the next 200 requests.
+Reproducible via `scripts/traffic_smoke_test.sh`, which prints the split
+counts directly. The separate latency numbers (p50=2.01ms, p95=2.81ms,
+p99=3.38ms, 0 errors over 300 requests) live in
+`test/benchmark/results/v0.5.0_latency.json`.
 
 ## Why per-service, not per-route granularity
 
